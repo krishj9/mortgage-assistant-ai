@@ -1,0 +1,26 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-loanofficer}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-loanofficer_password}
+      POSTGRES_DB: ${POSTGRES_DB:-loanofficer_mvp}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  localstack:
+    image: localstack/localstack:2.3.0
+    environment:
+      - SERVICES=s3
+      - DEFAULT_REGION=${AWS_REGION:-us-east-1}
+    ports:
+      - "4566:4566"
+    volumes:
+      - localstack_data:/var/lib/localstack
+
+volumes:
+  postgres_data:
+  localstack_data:
+

@@ -1,0 +1,8 @@
+{
+  "text": "PAY STUB — EARNINGS STATEMENT\nEmployer: Acme Corp\nEmployee: Alice Borrower\nPay Frequency: Bi-Weekly\nGross Pay: 8500.00\nNet Pay: 6149.75",
+  "key_values": {
+    "Employer": "Acme Corp",
+    "Employee": "Alice Borrower",
+    "Gross Pay": "8500.00"
+  }
+}

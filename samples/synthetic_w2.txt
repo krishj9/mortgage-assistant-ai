@@ -1,0 +1,24 @@
+Form W-2 Wage and Tax Statement — 2025
+======================================
+
+Employer Name:     Acme Corp
+Employer EIN:      12-3456789
+Employer Address:  100 Market Street, San Francisco, CA 94105
+
+Employee Name:     Alice Borrower
+Employee SSN:      ***-**-1234
+Employee Address:  42 Demo Lane, San Francisco, CA 94102
+
+Box 1 Wages, tips, other compensation:    96000.00
+Box 2 Federal income tax withheld:        18240.00
+Box 3 Social security wages:              96000.00
+Box 4 Social security tax withheld:       5952.00
+Box 5 Medicare wages and tips:            96000.00
+Box 6 Medicare tax withheld:              1392.00
+Box 12a Code D — 401(k):                  6000.00
+
+State:             CA
+State wages:       96000.00
+State income tax:  6720.00
+
+This is a synthetic W-2 for MVP demo and testing purposes only.

@@ -1,0 +1,1604 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mortgage Loan Officer &amp; Borrower Copilot — Architecture &amp; Design</title>
+<style>
+  :root {
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --ink: #0f172a;
+    --ink-soft: #334155;
+    --ink-mute: #64748b;
+    --line: #e2e8f0;
+    --line-strong: #cbd5e1;
+    --accent: #4f46e5;
+    --accent-soft: #eef2ff;
+    --code-bg: #0f172a;
+    --code-ink: #e2e8f0;
+
+    --frontend: #4f46e5;
+    --frontend-soft: #e0e7ff;
+    --backend: #0ea5e9;
+    --backend-soft: #e0f2fe;
+    --agent: #16a34a;
+    --agent-soft: #dcfce7;
+    --orchestrator: #7c3aed;
+    --orchestrator-soft: #ede9fe;
+    --data: #ca8a04;
+    --data-soft: #fef3c7;
+    --external: #db2777;
+    --external-soft: #fce7f3;
+    --human: #ea580c;
+    --human-soft: #ffedd5;
+    --arrow: #475569;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+  }
+
+  .page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 48px 40px 96px;
+  }
+
+  header.doc-header {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 28px;
+    margin-bottom: 36px;
+  }
+
+  header.doc-header .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+
+  header.doc-header h1 {
+    font-size: 30px;
+    margin: 0 0 12px;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+
+  header.doc-header p.lede {
+    font-size: 16px;
+    color: var(--ink-soft);
+    margin: 0 0 18px;
+    max-width: 80ch;
+  }
+
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px 24px;
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+  .meta-grid dt {
+    font-weight: 600;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 11px;
+    margin-bottom: 2px;
+  }
+  .meta-grid dd {
+    margin: 0;
+    color: var(--ink);
+  }
+
+  nav.toc {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 36px;
+  }
+  nav.toc h2 {
+    margin: 0 0 12px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--ink-mute);
+  }
+  nav.toc ol {
+    columns: 2;
+    column-gap: 32px;
+    margin: 0;
+    padding-left: 20px;
+    color: var(--ink-soft);
+  }
+  nav.toc a {
+    color: var(--ink);
+    text-decoration: none;
+    border-bottom: 1px dotted transparent;
+  }
+  nav.toc a:hover { border-bottom-color: var(--accent); }
+
+  section {
+    margin: 48px 0;
+  }
+
+  section > h2 {
+    font-size: 22px;
+    letter-spacing: -0.01em;
+    margin: 0 0 8px;
+    color: var(--ink);
+    border-left: 4px solid var(--accent);
+    padding-left: 12px;
+  }
+
+  section > p.section-lede {
+    color: var(--ink-soft);
+    margin: 0 0 20px;
+    max-width: 80ch;
+  }
+
+  h3 {
+    font-size: 17px;
+    margin: 28px 0 8px;
+    color: var(--ink);
+  }
+
+  h4 {
+    font-size: 14px;
+    margin: 18px 0 6px;
+    color: var(--ink);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-mute);
+  }
+
+  p { margin: 0 0 12px; }
+  ul, ol { padding-left: 22px; margin: 0 0 14px; }
+  li { margin-bottom: 6px; }
+
+  code, kbd, pre, .mono {
+    font-family: "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  code {
+    background: var(--accent-soft);
+    color: var(--ink);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.88em;
+  }
+
+  pre {
+    background: var(--code-bg);
+    color: var(--code-ink);
+    padding: 16px 18px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 20px;
+    font-size: 13.5px;
+  }
+  th, td {
+    border: 1px solid var(--line);
+    padding: 9px 12px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: #f1f5f9;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  tbody tr:nth-child(even) td { background: #fafbfc; }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px 18px;
+  }
+  .card h4 { margin-top: 0; color: var(--ink); text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 700; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+  }
+  .badge.frontend  { background: var(--frontend-soft); color: var(--frontend); }
+  .badge.backend   { background: var(--backend-soft); color: var(--backend); }
+  .badge.agent     { background: var(--agent-soft); color: var(--agent); }
+  .badge.data      { background: var(--data-soft); color: #92400e; }
+  .badge.external  { background: var(--external-soft); color: var(--external); }
+  .badge.human     { background: var(--human-soft); color: var(--human); }
+
+  figure.diagram {
+    margin: 24px 0 8px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px 18px 12px;
+    overflow-x: auto;
+  }
+  figure.diagram svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: 100%;
+  }
+  figure.diagram figcaption {
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: var(--ink-mute);
+    text-align: center;
+    font-style: italic;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    margin: 10px 0 14px;
+    font-size: 12px;
+    color: var(--ink-soft);
+  }
+  .legend .swatch {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .legend .swatch i {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    border: 1px solid rgba(15, 23, 42, 0.15);
+  }
+
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: var(--accent-soft);
+    color: #1e1b4b;
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    margin: 14px 0;
+    font-size: 13.5px;
+  }
+  .callout.warn {
+    border-left-color: var(--human);
+    background: var(--human-soft);
+    color: #7c2d12;
+  }
+
+  footer.doc-footer {
+    margin-top: 64px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    color: var(--ink-mute);
+    font-size: 12.5px;
+    text-align: center;
+  }
+
+  /* SVG defaults inside diagrams */
+  svg .text         { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; fill: var(--ink); }
+  svg .title        { font-size: 14px; font-weight: 700; }
+  svg .subtitle     { font-size: 11px; fill: var(--ink-mute); }
+  svg .lbl          { font-size: 12px; }
+  svg .lbl-sm       { font-size: 10.5px; fill: var(--ink-mute); }
+  svg .edge-lbl     { font-size: 10.5px; fill: #1e293b; }
+  svg .arrow-line   { stroke: var(--arrow); stroke-width: 1.6; fill: none; }
+  svg .arrow-line.dashed { stroke-dasharray: 5 4; }
+  svg .group-box    { fill: none; stroke: var(--line-strong); stroke-dasharray: 6 4; stroke-width: 1.4; }
+
+  /* Print styles for PDF export */
+  @media print {
+    html, body { background: #ffffff; }
+    .page { max-width: none; padding: 16mm; }
+    nav.toc { break-after: page; }
+    section { break-inside: avoid; }
+    figure.diagram { break-inside: avoid; border-color: #cbd5e1; }
+    a { color: inherit; text-decoration: none; }
+    pre { background: #0f172a; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+
+<header class="doc-header">
+  <div class="eyebrow">Architecture &amp; Design Document</div>
+  <h1>Mortgage Loan Officer &amp; Borrower Copilot — MVP</h1>
+  <p class="lede">
+    A mortgage copilot that helps loan officers (LOs) and processors pre‑qualify W‑2 borrowers
+    by combining a conversational borrower intake, automated document understanding, and
+    multi‑agent reasoning — always with strict human‑in‑the‑loop control before anything is
+    shown to the borrower or persisted as final.
+  </p>
+  <dl class="meta-grid">
+    <div><dt>Document ID</dt><dd>ARCH‑LOAN‑COPILOT‑MVP‑001</dd></div>
+    <div><dt>Version</dt><dd>1.1</dd></div>
+    <div><dt>Status</dt><dd>Current</dd></div>
+    <div><dt>Last Updated</dt><dd>2026‑05‑29</dd></div>
+    <div><dt>Phase</dt><dd>Phase‑1 MVP</dd></div>
+    <div><dt>Owner</dt><dd>Engineering</dd></div>
+    <div><dt>Sources</dt><dd>requirements.md, design.md, implementation-plan.md</dd></div>
+    <div><dt>Scope</dt><dd>W‑2 borrowers, synthetic data, single deal flow</dd></div>
+  </dl>
+</header>
+
+<nav class="toc" aria-label="Table of contents">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#system-overview">System overview</a></li>
+    <li><a href="#goals">Context, goals &amp; non‑goals</a></li>
+    <li><a href="#logical-architecture">Logical architecture</a></li>
+    <li><a href="#deployment">Deployment / runtime view</a></li>
+    <li><a href="#data-model">Data model overview</a></li>
+    <li><a href="#agents">Agent orchestration view</a></li>
+    <li><a href="#llm-schema-pattern">LLM schema &amp; tiered intake</a></li>
+    <li><a href="#flows">End‑to‑end sequence flows</a></li>
+    <li><a href="#nfr">Non‑functional &amp; extensibility</a></li>
+  </ol>
+</nav>
+
+<!-- =================================================================== -->
+<section id="system-overview">
+  <h2>1. System overview</h2>
+  <p class="section-lede">
+    A web application with a React (Next.js App Router) front end, a FastAPI backend, and a
+    LangGraph + AWS Bedrock agent layer that calls AWS Textract for OCR/IDP. State is
+    persisted in a relational database via SQLAlchemy 2.0 + Alembic; documents live in object
+    storage; every agent run is traced in LangSmith.
+  </p>
+
+  <p>
+    The Phase‑1 MVP delivers the end‑to‑end loop for a single W‑2 borrower:
+    <strong>borrower chat intake → document upload → Textract‑backed classification and
+    extraction → eligibility &amp; conditions draft → LO review and approval of extractions,
+    status, and borrower‑facing messages</strong>. The borrower never sees pre‑qualification
+    status or conditions until a loan officer has explicitly approved them.
+  </p>
+
+  <div class="callout">
+    <strong>Operating principle.</strong> Every generative output produced by the agent layer
+    is treated as a <em>draft</em>. Drafts are persisted alongside human corrections and
+    approval flags; only approved artifacts cross the boundary back to the borrower.
+  </div>
+
+  <div class="callout" style="border-left-color: #16a34a;">
+    <strong>Structured LLM outputs (2026‑05‑29).</strong> Agent completions that carry business
+    data are constrained to Pydantic schemas via
+    <code>get_structured_model()</code> (<code>ChatBedrockConverse.with_structured_output</code>).
+    Borrower intake uses a <em>tiered</em> pipeline (L0 regex → L1 schema-bound extraction → L2
+    templated or structured reply) so most chat turns incur <strong>zero Bedrock tokens</strong>
+    while ambiguous natural language still routes to the LLM. Database writes always pass through
+    <code>LoanApplicationData</code> validation in <code>try_apply_application_patch</code>.
+  </div>
+</section>
+
+<!-- =================================================================== -->
+<section id="goals">
+  <h2>2. Context, goals &amp; non‑goals</h2>
+
+  <div class="grid-2">
+    <div class="card">
+      <h4>Phase‑1 goals</h4>
+      <ul>
+        <li>Borrower can submit a simplified application and upload key documents via a conversational web UI.</li>
+        <li>Automatically classify and OCR pay stubs, W‑2s, bank statements, and a synthetic 1003‑like PDF.</li>
+        <li>Extract structured income, asset, and applicant metadata into a normalized <code>DealContext</code>.</li>
+        <li>Produce a draft pre‑qualification (DTI/LTV + green/yellow/red) and conditions list for LO review.</li>
+        <li>Generate editable internal rationale and borrower‑facing explanations — always behind an approval gate.</li>
+        <li>Demonstrate a multi‑agent architecture (intake, document understanding, eligibility, explanation, orchestrator) with full LangSmith traces.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>Phase‑1 non‑goals</h4>
+      <ul>
+        <li>No real credit pulls, pricing engines, or binding credit decisions.</li>
+        <li>No investor‑specific guideline matrices (Conventional vs FHA/VA/USDA).</li>
+        <li>No support for self‑employed income, non‑traditional income, or multi‑borrower files.</li>
+        <li>No production LOS integration; Phase‑1 stops at internal "reviewed pre‑qual notes."</li>
+        <li>No mobile native apps; responsive browser only.</li>
+        <li>No RAG over real policy documents (extensibility hook for a later phase).</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Personas</h3>
+  <table>
+    <thead>
+      <tr><th>Persona</th><th>Primary surface</th><th>Top jobs‑to‑be‑done</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="badge frontend">Borrower</span></td>
+        <td>Borrower Portal (chat)</td>
+        <td>Get a plain‑language guided intake; know which documents are needed and why; upload directly in the portal.</td>
+      </tr>
+      <tr>
+        <td><span class="badge frontend">Loan Officer</span></td>
+        <td>LO/Processor Console</td>
+        <td>See the application summary, extracted data, suggested conditions, and edit/approve borrower‑facing messages.</td>
+      </tr>
+      <tr>
+        <td><span class="badge frontend">Processor</span></td>
+        <td>LO/Processor Console</td>
+        <td>Review every document side‑by‑side with its extraction and correct errors before they affect decisions.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- =================================================================== -->
+<section id="logical-architecture">
+  <h2>3. Logical architecture</h2>
+  <p class="section-lede">
+    Five logical tiers cooperate to support the borrower → LO loop: client apps, the FastAPI
+    backend, an agent layer built on LangGraph, persistent state in a relational DB and
+    object storage, and a set of external managed services (Bedrock, Textract, LangSmith).
+  </p>
+
+  <div class="legend">
+    <span class="swatch"><i style="background: var(--frontend-soft); border-color: var(--frontend);"></i> Frontend</span>
+    <span class="swatch"><i style="background: var(--backend-soft); border-color: var(--backend);"></i> Backend service</span>
+    <span class="swatch"><i style="background: var(--orchestrator-soft); border-color: var(--orchestrator);"></i> Orchestrator</span>
+    <span class="swatch"><i style="background: var(--agent-soft); border-color: var(--agent);"></i> Agent</span>
+    <span class="swatch"><i style="background: var(--data-soft); border-color: var(--data);"></i> Data store</span>
+    <span class="swatch"><i style="background: var(--external-soft); border-color: var(--external);"></i> External / managed</span>
+  </div>
+
+  <figure class="diagram" aria-label="High-level system architecture">
+    <svg viewBox="0 0 1200 840" role="img" aria-labelledby="arch-title arch-desc" preserveAspectRatio="xMidYMid meet">
+      <title id="arch-title">High-level system architecture</title>
+      <desc id="arch-desc">
+        Two browser-based frontends (Borrower Portal, LO Console) call a FastAPI backend.
+        The backend coordinates an Agent Layer (LangGraph orchestrator with four agents)
+        that calls AWS Bedrock for LLM completions and AWS Textract for OCR. State is
+        persisted in PostgreSQL and object storage; every agent run is traced in LangSmith.
+      </desc>
+
+      <defs>
+        <marker id="arrow1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+        </marker>
+      </defs>
+
+      <!-- Tier 1: Clients -->
+      <text x="40" y="34" class="text subtitle">CLIENTS &nbsp;·&nbsp; Browser</text>
+      <line x1="40" y1="42" x2="1160" y2="42" stroke="#e2e8f0" stroke-width="1"/>
+
+      <g>
+        <rect x="120" y="60" width="280" height="110" rx="10" fill="#e0e7ff" stroke="#4f46e5" stroke-width="1.6"/>
+        <text x="260" y="92" text-anchor="middle" class="text title" fill="#312e81">Borrower Portal</text>
+        <text x="260" y="112" text-anchor="middle" class="text lbl" fill="#312e81">Next.js / React (App Router)</text>
+        <text x="260" y="132" text-anchor="middle" class="text lbl-sm">ChatWindow · ChatInput · StatusPanel</text>
+        <text x="260" y="150" text-anchor="middle" class="text lbl-sm">DocumentUploadCard</text>
+      </g>
+
+      <g>
+        <rect x="800" y="60" width="280" height="110" rx="10" fill="#e0e7ff" stroke="#4f46e5" stroke-width="1.6"/>
+        <text x="940" y="92" text-anchor="middle" class="text title" fill="#312e81">LO / Processor Console</text>
+        <text x="940" y="112" text-anchor="middle" class="text lbl" fill="#312e81">Next.js / React (App Router)</text>
+        <text x="940" y="132" text-anchor="middle" class="text lbl-sm">DealList · ApplicationSummary · DocumentViewer</text>
+        <text x="940" y="150" text-anchor="middle" class="text lbl-sm">ExtractionReview · EligibilityPanel · MessageApproval</text>
+      </g>
+
+      <!-- Tier 2: Backend -->
+      <text x="40" y="208" class="text subtitle">BACKEND &nbsp;·&nbsp; FastAPI (Python 3.11)</text>
+      <line x1="40" y1="216" x2="1160" y2="216" stroke="#e2e8f0" stroke-width="1"/>
+
+      <g>
+        <rect x="160" y="232" width="880" height="130" rx="10" fill="#e0f2fe" stroke="#0ea5e9" stroke-width="1.6"/>
+        <text x="600" y="260" text-anchor="middle" class="text title" fill="#075985">FastAPI Backend (ASGI)</text>
+        <text x="600" y="278" text-anchor="middle" class="text lbl-sm">auth · deals · borrower_chat · documents · extractions · eligibility · messages</text>
+
+        <!-- Router pill row -->
+        <g font-family="inherit">
+          <rect x="180" y="296" width="120" height="26" rx="13" fill="#ffffff" stroke="#0284c7"/>
+          <text x="240" y="313" text-anchor="middle" class="text lbl" fill="#075985">auth</text>
+
+          <rect x="310" y="296" width="120" height="26" rx="13" fill="#ffffff" stroke="#0284c7"/>
+          <text x="370" y="313" text-anchor="middle" class="text lbl" fill="#075985">deals</text>
+
+          <rect x="440" y="296" width="150" height="26" rx="13" fill="#ffffff" stroke="#0284c7"/>
+          <text x="515" y="313" text-anchor="middle" class="text lbl" fill="#075985">borrower_chat</text>
+
+          <rect x="600" y="296" width="130" height="26" rx="13" fill="#ffffff" stroke="#0284c7"/>
+          <text x="665" y="313" text-anchor="middle" class="text lbl" fill="#075985">documents</text>
+
+          <rect x="740" y="296" width="130" height="26" rx="13" fill="#ffffff" stroke="#0284c7"/>
+          <text x="805" y="313" text-anchor="middle" class="text lbl" fill="#075985">extractions</text>
+
+          <rect x="880" y="296" width="140" height="26" rx="13" fill="#ffffff" stroke="#0284c7"/>
+          <text x="950" y="313" text-anchor="middle" class="text lbl" fill="#075985">eligibility · messages</text>
+        </g>
+
+        <text x="600" y="346" text-anchor="middle" class="text lbl-sm">services/ · approval_service · workers/document_pipeline (BackgroundTasks)</text>
+      </g>
+
+      <!-- Tier 3: Agent Layer -->
+      <text x="40" y="404" class="text subtitle">AGENT LAYER &nbsp;·&nbsp; LangGraph + Bedrock</text>
+      <line x1="40" y1="412" x2="1160" y2="412" stroke="#e2e8f0" stroke-width="1"/>
+
+      <g>
+        <!-- Orchestrator container -->
+        <rect x="80" y="430" width="820" height="170" rx="12" fill="#ede9fe" stroke="#7c3aed" stroke-width="1.8"/>
+        <text x="490" y="454" text-anchor="middle" class="text title" fill="#4c1d95">Orchestrator (LangGraph state machine)</text>
+
+        <!-- 4 agents inside orchestrator -->
+        <g>
+          <rect x="105" y="475" width="180" height="100" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="1.4"/>
+          <text x="195" y="500" text-anchor="middle" class="text title" fill="#14532d" font-size="12.5">Borrower Chat</text>
+          <text x="195" y="516" text-anchor="middle" class="text title" fill="#14532d" font-size="12.5">&amp; Intake Agent</text>
+          <text x="195" y="538" text-anchor="middle" class="text lbl-sm">tool: application_writer</text>
+          <text x="195" y="554" text-anchor="middle" class="text lbl-sm">→ LoanApplication</text>
+          <text x="195" y="568" text-anchor="middle" class="text lbl-sm">missing_fields</text>
+        </g>
+        <g>
+          <rect x="295" y="475" width="195" height="100" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="1.4"/>
+          <text x="392" y="500" text-anchor="middle" class="text title" fill="#14532d" font-size="12.5">Document</text>
+          <text x="392" y="516" text-anchor="middle" class="text title" fill="#14532d" font-size="12.5">Understanding Agent</text>
+          <text x="392" y="538" text-anchor="middle" class="text lbl-sm">tools: ocr_runner,</text>
+          <text x="392" y="554" text-anchor="middle" class="text lbl-sm">extraction_mapper</text>
+          <text x="392" y="568" text-anchor="middle" class="text lbl-sm">→ DealContext</text>
+        </g>
+        <g>
+          <rect x="500" y="475" width="180" height="100" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="1.4"/>
+          <text x="590" y="500" text-anchor="middle" class="text title" fill="#14532d" font-size="12.5">Eligibility &amp;</text>
+          <text x="590" y="516" text-anchor="middle" class="text title" fill="#14532d" font-size="12.5">Conditions Agent</text>
+          <text x="590" y="538" text-anchor="middle" class="text lbl-sm">tool: rules.py</text>
+          <text x="590" y="554" text-anchor="middle" class="text lbl-sm">DTI / LTV / status</text>
+          <text x="590" y="568" text-anchor="middle" class="text lbl-sm">conditions list</text>
+        </g>
+        <g>
+          <rect x="690" y="475" width="195" height="100" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="1.4"/>
+          <text x="787" y="500" text-anchor="middle" class="text title" fill="#14532d" font-size="12.5">Explanation &amp;</text>
+          <text x="787" y="516" text-anchor="middle" class="text title" fill="#14532d" font-size="12.5">Messaging Agent</text>
+          <text x="787" y="538" text-anchor="middle" class="text lbl-sm">internal_draft</text>
+          <text x="787" y="554" text-anchor="middle" class="text lbl-sm">borrower_draft</text>
+          <text x="787" y="568" text-anchor="middle" class="text lbl-sm">→ Messages</text>
+        </g>
+
+        <!-- Orchestrator badge -->
+        <rect x="780" y="436" width="110" height="22" rx="11" fill="#7c3aed"/>
+        <text x="835" y="451" text-anchor="middle" class="text lbl" fill="#ffffff" font-size="11" font-weight="700">build_graph()</text>
+      </g>
+
+      <!-- Right: External managed services -->
+      <g>
+        <rect x="940" y="430" width="220" height="50" rx="8" fill="#fce7f3" stroke="#db2777" stroke-width="1.4"/>
+        <text x="1050" y="453" text-anchor="middle" class="text title" fill="#831843" font-size="12.5">AWS Bedrock</text>
+        <text x="1050" y="470" text-anchor="middle" class="text lbl-sm">BEDROCK_MODEL_ID · structured output</text>
+
+        <rect x="940" y="490" width="220" height="50" rx="8" fill="#fce7f3" stroke="#db2777" stroke-width="1.4"/>
+        <text x="1050" y="513" text-anchor="middle" class="text title" fill="#831843" font-size="12.5">AWS Textract</text>
+        <text x="1050" y="530" text-anchor="middle" class="text lbl-sm">analyze_document / analyze_expense</text>
+
+        <rect x="940" y="550" width="220" height="50" rx="8" fill="#fce7f3" stroke="#db2777" stroke-width="1.4"/>
+        <text x="1050" y="573" text-anchor="middle" class="text title" fill="#831843" font-size="12.5">LangSmith</text>
+        <text x="1050" y="590" text-anchor="middle" class="text lbl-sm">Traces · run metadata · projects</text>
+      </g>
+
+      <!-- Tier 4: Data -->
+      <text x="40" y="640" class="text subtitle">PERSISTENCE</text>
+      <line x1="40" y1="648" x2="1160" y2="648" stroke="#e2e8f0" stroke-width="1"/>
+
+      <g>
+        <rect x="160" y="666" width="380" height="100" rx="10" fill="#fef3c7" stroke="#ca8a04" stroke-width="1.6"/>
+        <text x="350" y="694" text-anchor="middle" class="text title" fill="#713f12">Relational DB (PostgreSQL / SQLite dev)</text>
+        <text x="350" y="714" text-anchor="middle" class="text lbl-sm">SQLAlchemy 2.0 · Alembic migrations</text>
+        <text x="350" y="732" text-anchor="middle" class="text lbl-sm">borrowers · deals · loan_applications · deal_contexts</text>
+        <text x="350" y="748" text-anchor="middle" class="text lbl-sm">documents · document_extractions · messages · chat_turns · users</text>
+      </g>
+
+      <g>
+        <rect x="660" y="666" width="380" height="100" rx="10" fill="#fef3c7" stroke="#ca8a04" stroke-width="1.6"/>
+        <text x="850" y="694" text-anchor="middle" class="text title" fill="#713f12">Object Storage</text>
+        <text x="850" y="714" text-anchor="middle" class="text lbl-sm">services/storage abstraction</text>
+        <text x="850" y="732" text-anchor="middle" class="text lbl-sm">local filesystem (dev) · S3 / LocalStack (deployed)</text>
+        <text x="850" y="748" text-anchor="middle" class="text lbl-sm">raw uploaded documents · presigned URLs</text>
+      </g>
+
+      <!-- ARROWS: Frontends -> Backend -->
+      <path d="M 260,170 L 260,232" class="arrow-line" marker-end="url(#arrow1)"/>
+      <text x="270" y="205" class="text edge-lbl">HTTPS · JWT</text>
+
+      <path d="M 940,170 L 940,232" class="arrow-line" marker-end="url(#arrow1)"/>
+      <text x="950" y="205" class="text edge-lbl">HTTPS · Staff JWT</text>
+
+      <!-- Backend -> Agent Layer (orchestrator) -->
+      <path d="M 600,362 L 600,430" class="arrow-line" marker-end="url(#arrow1)"/>
+      <text x="610" y="400" class="text edge-lbl">invoke graph (per turn / per upload / on run)</text>
+
+      <!-- Agents -> Bedrock -->
+      <path d="M 885,520 L 940,455" class="arrow-line" marker-end="url(#arrow1)"/>
+      <text x="892" y="495" class="text edge-lbl">LLM</text>
+
+      <!-- Document Understanding -> Textract -->
+      <path d="M 490,540 C 700,540 800,520 940,515" class="arrow-line" marker-end="url(#arrow1)"/>
+      <text x="700" y="555" class="text edge-lbl">OCR</text>
+
+      <!-- Orchestrator -> LangSmith -->
+      <path d="M 880,575 C 920,580 930,576 940,575" class="arrow-line dashed" marker-end="url(#arrow1)"/>
+      <text x="888" y="595" class="text edge-lbl">traces (all agents)</text>
+
+      <!-- Backend -> DB -->
+      <path d="M 420,362 L 350,666" class="arrow-line" marker-end="url(#arrow1)"/>
+      <text x="320" y="500" class="text edge-lbl">SQLAlchemy</text>
+
+      <!-- Backend -> Storage -->
+      <path d="M 780,362 L 850,666" class="arrow-line" marker-end="url(#arrow1)"/>
+      <text x="830" y="500" class="text edge-lbl">put / presigned URL</text>
+
+      <!-- DocUnderstanding -> Storage (read raw bytes) -->
+      <path d="M 392,575 C 392,640 700,650 730,666" class="arrow-line dashed" marker-end="url(#arrow1)"/>
+      <text x="500" y="640" class="text edge-lbl">read raw bytes</text>
+
+    </svg>
+    <figcaption>Figure 1 — High-level system architecture. Solid arrows are request/response calls; dashed arrows are asynchronous traces and out-of-band reads.</figcaption>
+  </figure>
+
+  <h3>Component domains</h3>
+  <div class="grid-2">
+    <div class="card">
+      <h4><span class="badge frontend">Frontend</span> Borrower Portal</h4>
+      <p>Chat-style intake, inline document upload prompts, live status panel showing captured fields and remaining gaps. Scoped to a single deal via a signed borrower session token.</p>
+    </div>
+    <div class="card">
+      <h4><span class="badge frontend">Frontend</span> LO / Processor Console</h4>
+      <p>Deal list with status filters, application summary, side-by-side document viewer + extraction editor, eligibility panel, and the message approval workspace that enforces the human-in-the-loop gate.</p>
+    </div>
+    <div class="card">
+      <h4><span class="badge backend">Backend</span> FastAPI APIs</h4>
+      <p>Thin routers per domain (<code>auth</code>, <code>deals</code>, <code>borrower_chat</code>, <code>documents</code>, <code>extractions</code>, <code>eligibility</code>, <code>messages</code>) with business logic isolated in <code>services/</code>. Access control is enforced by <code>require_deal_access</code>.</p>
+    </div>
+    <div class="card">
+      <h4><span class="badge orchestrator" style="background: var(--orchestrator-soft); color: var(--orchestrator);">Orchestrator</span> LangGraph state machine</h4>
+      <p>Single <code>build_graph()</code> entry point that wires the four agent nodes, holds the typed <code>LoanCopilotState</code>, and routes per-trigger (borrower turn, document upload, run-eligibility).</p>
+    </div>
+    <div class="card">
+      <h4><span class="badge agent">Agents</span> Four cooperating LLM agents</h4>
+      <p>Intake, Document Understanding, Eligibility &amp; Conditions, Explanation &amp; Messaging. Shared I/O contracts live in <code>schemas/agent_io.py</code>; Bedrock calls use <code>get_structured_model(schema)</code>. Intake is tiered (L0/L1/L2) for token efficiency. None bypass the approval gate.</p>
+    </div>
+    <div class="card">
+      <h4><span class="badge data">Data</span> Persistence</h4>
+      <p>SQLAlchemy 2.0 with a portable JSON column strategy (SQLite locally, JSONB on Postgres). Documents in an object-storage abstraction with local-filesystem and S3 backends.</p>
+    </div>
+    <div class="card">
+      <h4><span class="badge external">External</span> Bedrock &amp; Textract</h4>
+      <p>Bedrock Converse via <code>langchain-aws</code>: <code>get_chat_model()</code> for free-form use and <code>get_structured_model(PydanticSchema)</code> for schema-bound JSON (no prompt-side <code>json.loads</code>). Model ID is env-configurable (e.g. Claude 3 Haiku locally, Sonnet in prod). Textract <code>analyze_document</code> / <code>analyze_expense</code> as before.</p>
+    </div>
+    <div class="card">
+      <h4><span class="badge external">External</span> LangSmith observability</h4>
+      <p>One project per agent (<code>borrower_chat</code>, <code>doc_understanding</code>, <code>eligibility</code>, <code>messaging</code>). Run metadata includes <code>deal_id</code>, <code>document_id</code>, and <code>user_id</code> for correlation with backend logs.</p>
+    </div>
+  </div>
+</section>
+
+<!-- =================================================================== -->
+<section id="deployment">
+  <h2>4. Deployment / runtime view</h2>
+  <p class="section-lede">
+    The Phase‑1 MVP runs equivalently on a developer laptop (Docker Compose) and in a single
+    cloud environment, behind the same env-var contract. Frontend and backend are independent
+    container images; managed services are reached over HTTPS from the backend only.
+  </p>
+
+  <table>
+    <thead>
+      <tr><th>Component</th><th>Runtime</th><th>Local dev</th><th>Deployed (Phase‑6 path)</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="badge frontend">Borrower Portal &amp; LO Console</span></td>
+        <td>Next.js standalone (Node)</td>
+        <td><code>pnpm dev</code> on <code>:3000</code></td>
+        <td>Single Next.js container (one app, two route trees)</td>
+      </tr>
+      <tr>
+        <td><span class="badge backend">FastAPI Backend</span></td>
+        <td>Gunicorn + Uvicorn workers</td>
+        <td><code>uvicorn app.main:app --reload</code> on <code>:8000</code></td>
+        <td>FastAPI container; <code>/healthz</code> and <code>/readyz</code> probes</td>
+      </tr>
+      <tr>
+        <td><span class="badge data">Database</span></td>
+        <td>PostgreSQL 16</td>
+        <td>SQLite file <em>or</em> <code>postgres:16</code> in Docker Compose</td>
+        <td>Managed Postgres; Alembic migrations on deploy</td>
+      </tr>
+      <tr>
+        <td><span class="badge data">Object Storage</span></td>
+        <td>S3 API</td>
+        <td>Local filesystem <em>or</em> LocalStack S3</td>
+        <td>S3 bucket; presigned URLs for viewer</td>
+      </tr>
+      <tr>
+        <td><span class="badge external">AWS Bedrock</span></td>
+        <td>Managed LLM (<code>BEDROCK_MODEL_ID</code>, e.g. Claude 3 Haiku / Sonnet)</td>
+        <td>Real call; unit/integration tests stub <code>get_structured_model</code></td>
+        <td>Real call via <code>langchain-aws</code> · region must match Textract</td>
+      </tr>
+      <tr>
+        <td><span class="badge external">AWS Textract</span></td>
+        <td>Managed OCR / IDP</td>
+        <td>Real call <em>or</em> <code>botocore.stub.Stubber</code> with canned JSON</td>
+        <td>Real call · region parity with Bedrock</td>
+      </tr>
+      <tr>
+        <td><span class="badge external">LangSmith</span></td>
+        <td>Hosted tracing</td>
+        <td>No-op when <code>LANGSMITH_API_KEY</code> is absent</td>
+        <td>One project per agent with metadata tagging</td>
+      </tr>
+      <tr>
+        <td><span class="badge backend">Document worker</span></td>
+        <td>In-process FastAPI <code>BackgroundTasks</code></td>
+        <td>Same process</td>
+        <td>Hot-swappable for RQ/Celery without API surface change</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Configuration surface</h3>
+  <pre>DATABASE_URL=postgresql+psycopg://...
+JWT_SECRET=...
+AWS_REGION=us-east-1
+BEDROCK_MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0   # or claude-3-5-sonnet-…
+TEXTRACT_REGION=us-east-1
+STORAGE_BACKEND=s3                # or "local"
+S3_BUCKET=loan-copilot-docs       # used when STORAGE_BACKEND=s3
+LOCAL_STORAGE_DIR=./var/uploads   # used when STORAGE_BACKEND=local
+LANGSMITH_API_KEY=...             # optional in dev
+LANGSMITH_PROJECT=loan-copilot</pre>
+
+  <div class="callout">
+    <strong>Portability invariant.</strong> Routes never touch <code>boto3</code> directly;
+    storage and OCR are accessed through <code>services/storage/base.py</code> and
+    <code>services/ocr/base.py</code>. JSON columns use SQLAlchemy's portable <code>JSON</code>
+    type so the same migrations apply to SQLite and Postgres.
+  </div>
+</section>
+
+<!-- =================================================================== -->
+<section id="data-model">
+  <h2>5. Data model overview</h2>
+  <p class="section-lede">
+    State flows from a <em>Borrower</em> through a single <em>Deal</em>, accumulating a
+    <em>LoanApplication</em> (from chat), a <em>DealContext</em> (from documents and human
+    corrections), <em>Documents</em> with their <em>Extractions</em>, and the dual
+    internal/borrower <em>Messages</em> draft. <em>ChatTurns</em> retain conversation
+    history and <em>ApprovalEvents</em> form an immutable audit of human gates.
+  </p>
+
+  <figure class="diagram" aria-label="Data model entity relationship diagram">
+    <svg viewBox="0 0 1200 620" role="img" aria-labelledby="data-title data-desc" preserveAspectRatio="xMidYMid meet">
+      <title id="data-title">Data model — entities and relationships</title>
+      <desc id="data-desc">
+        Borrower has many Deals. Each Deal has one LoanApplication, one DealContext, one
+        Messages record, many Documents, many ChatTurns, and many ApprovalEvents performed
+        by staff Users. Each Document has one DocumentExtraction.
+      </desc>
+
+      <defs>
+        <marker id="erEnd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+        </marker>
+      </defs>
+
+      <!-- Entity styling: use group/box pattern -->
+      <!-- Borrower -->
+      <g>
+        <rect x="40" y="60" width="220" height="120" rx="8" fill="#fef3c7" stroke="#ca8a04" stroke-width="1.6"/>
+        <rect x="40" y="60" width="220" height="26" fill="#ca8a04"/>
+        <text x="150" y="78" text-anchor="middle" class="text title" fill="#ffffff">Borrower</text>
+        <text x="56" y="106" class="text lbl">id</text>
+        <text x="56" y="124" class="text lbl">name</text>
+        <text x="56" y="142" class="text lbl">email · phone</text>
+        <text x="56" y="160" class="text lbl-sm">created_at, updated_at</text>
+      </g>
+
+      <!-- Deal -->
+      <g>
+        <rect x="370" y="60" width="240" height="170" rx="8" fill="#e0f2fe" stroke="#0ea5e9" stroke-width="1.6"/>
+        <rect x="370" y="60" width="240" height="26" fill="#0ea5e9"/>
+        <text x="490" y="78" text-anchor="middle" class="text title" fill="#ffffff">Deal</text>
+        <text x="386" y="106" class="text lbl">id, borrower_id FK</text>
+        <text x="386" y="124" class="text lbl">status (enum)</text>
+        <text x="386" y="142" class="text lbl-sm">intake_in_progress · docs_pending</text>
+        <text x="386" y="158" class="text lbl-sm">extraction_in_progress · ready_for_review</text>
+        <text x="386" y="174" class="text lbl-sm">lo_approved · closed</text>
+        <text x="386" y="202" class="text lbl-sm">created_at, updated_at</text>
+      </g>
+
+      <!-- LoanApplication -->
+      <g>
+        <rect x="720" y="40" width="220" height="120" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="1.6"/>
+        <rect x="720" y="40" width="220" height="26" fill="#16a34a"/>
+        <text x="830" y="58" text-anchor="middle" class="text title" fill="#ffffff">LoanApplication</text>
+        <text x="736" y="86" class="text lbl">deal_id FK (1:1)</text>
+        <text x="736" y="104" class="text lbl">data (JSON)</text>
+        <text x="736" y="122" class="text lbl-sm">Identity · Contact · Employment</text>
+        <text x="736" y="138" class="text lbl-sm">Income · Assets · Liabilities · Property</text>
+      </g>
+
+      <!-- DealContext -->
+      <g>
+        <rect x="980" y="40" width="200" height="120" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="1.6"/>
+        <rect x="980" y="40" width="200" height="26" fill="#16a34a"/>
+        <text x="1080" y="58" text-anchor="middle" class="text title" fill="#ffffff">DealContext</text>
+        <text x="996" y="86" class="text lbl">deal_id FK (1:1)</text>
+        <text x="996" y="104" class="text lbl-sm">income · assets · liabilities</text>
+        <text x="996" y="120" class="text lbl-sm">eligibility (JSON)</text>
+        <text x="996" y="136" class="text lbl-sm">conditions (JSON)</text>
+        <text x="996" y="152" class="text lbl-sm">human corrections retained</text>
+      </g>
+
+      <!-- ChatTurn -->
+      <g>
+        <rect x="40" y="240" width="220" height="110" rx="8" fill="#e0e7ff" stroke="#4f46e5" stroke-width="1.6"/>
+        <rect x="40" y="240" width="220" height="26" fill="#4f46e5"/>
+        <text x="150" y="258" text-anchor="middle" class="text title" fill="#ffffff">ChatTurn</text>
+        <text x="56" y="286" class="text lbl">id, deal_id FK</text>
+        <text x="56" y="304" class="text lbl">role (borrower · assistant · system)</text>
+        <text x="56" y="322" class="text lbl">content, structured_payload</text>
+        <text x="56" y="340" class="text lbl-sm">created_at</text>
+      </g>
+
+      <!-- Document -->
+      <g>
+        <rect x="370" y="270" width="240" height="140" rx="8" fill="#fef3c7" stroke="#ca8a04" stroke-width="1.6"/>
+        <rect x="370" y="270" width="240" height="26" fill="#ca8a04"/>
+        <text x="490" y="288" text-anchor="middle" class="text title" fill="#ffffff">Document</text>
+        <text x="386" y="316" class="text lbl">id, deal_id FK</text>
+        <text x="386" y="334" class="text lbl">storage_uri, mime_type</text>
+        <text x="386" y="352" class="text lbl">predicted_type (enum)</text>
+        <text x="386" y="368" class="text lbl-sm">pay_stub · w2 · bank_statement · 1003 · unknown</text>
+        <text x="386" y="384" class="text lbl">extraction_status</text>
+        <text x="386" y="400" class="text lbl-sm">pending · running · succeeded · failed</text>
+      </g>
+
+      <!-- DocumentExtraction -->
+      <g>
+        <rect x="720" y="270" width="240" height="140" rx="8" fill="#fef3c7" stroke="#ca8a04" stroke-width="1.6"/>
+        <rect x="720" y="270" width="240" height="26" fill="#ca8a04"/>
+        <text x="840" y="288" text-anchor="middle" class="text title" fill="#ffffff">DocumentExtraction</text>
+        <text x="736" y="316" class="text lbl">document_id FK (1:1)</text>
+        <text x="736" y="334" class="text lbl">raw_ocr (JSON)</text>
+        <text x="736" y="352" class="text lbl">normalized (JSON)</text>
+        <text x="736" y="370" class="text lbl">confidence (JSON)</text>
+        <text x="736" y="388" class="text lbl">human_corrections (JSON)</text>
+        <text x="736" y="404" class="text lbl-sm">corrections override machine values</text>
+      </g>
+
+      <!-- Messages -->
+      <g>
+        <rect x="980" y="270" width="200" height="140" rx="8" fill="#ffedd5" stroke="#ea580c" stroke-width="1.6"/>
+        <rect x="980" y="270" width="200" height="26" fill="#ea580c"/>
+        <text x="1080" y="288" text-anchor="middle" class="text title" fill="#ffffff">Messages</text>
+        <text x="996" y="316" class="text lbl">deal_id FK (1:1)</text>
+        <text x="996" y="334" class="text lbl">internal_draft</text>
+        <text x="996" y="352" class="text lbl">internal_approved</text>
+        <text x="996" y="370" class="text lbl">borrower_draft</text>
+        <text x="996" y="388" class="text lbl">borrower_approved</text>
+        <text x="996" y="404" class="text lbl-sm">approved_by_user_id, approved_at</text>
+      </g>
+
+      <!-- User (staff) -->
+      <g>
+        <rect x="370" y="460" width="240" height="110" rx="8" fill="#e0e7ff" stroke="#4f46e5" stroke-width="1.6"/>
+        <rect x="370" y="460" width="240" height="26" fill="#4f46e5"/>
+        <text x="490" y="478" text-anchor="middle" class="text title" fill="#ffffff">User (staff)</text>
+        <text x="386" y="506" class="text lbl">id, email</text>
+        <text x="386" y="524" class="text lbl">role (lo · processor · admin)</text>
+        <text x="386" y="542" class="text lbl">password_hash</text>
+        <text x="386" y="560" class="text lbl-sm">JWT identity for console</text>
+      </g>
+
+      <!-- ApprovalEvent -->
+      <g>
+        <rect x="720" y="460" width="240" height="110" rx="8" fill="#ffedd5" stroke="#ea580c" stroke-width="1.6"/>
+        <rect x="720" y="460" width="240" height="26" fill="#ea580c"/>
+        <text x="840" y="478" text-anchor="middle" class="text title" fill="#ffffff">ApprovalEvent</text>
+        <text x="736" y="506" class="text lbl">id, user_id FK, deal_id FK</text>
+        <text x="736" y="524" class="text lbl">kind (extraction · eligibility ·</text>
+        <text x="736" y="540" class="text lbl">internal_msg · borrower_msg)</text>
+        <text x="736" y="560" class="text lbl-sm">payload_snapshot, created_at</text>
+      </g>
+
+      <!-- Relationships -->
+      <!-- Borrower 1..N Deal -->
+      <path d="M 260,120 L 370,140" class="arrow-line" marker-end="url(#erEnd)"/>
+      <text x="282" y="118" class="text edge-lbl">1 — N</text>
+
+      <!-- Deal 1..1 LoanApplication -->
+      <path d="M 610,110 L 720,90" class="arrow-line" marker-end="url(#erEnd)"/>
+      <text x="630" y="92" class="text edge-lbl">1 — 1</text>
+
+      <!-- Deal 1..1 DealContext -->
+      <path d="M 610,130 C 800,200 920,180 980,110" class="arrow-line" marker-end="url(#erEnd)"/>
+      <text x="850" y="195" class="text edge-lbl">1 — 1</text>
+
+      <!-- Deal 1..N Document -->
+      <path d="M 490,230 L 490,270" class="arrow-line" marker-end="url(#erEnd)"/>
+      <text x="500" y="255" class="text edge-lbl">1 — N</text>
+
+      <!-- Deal 1..N ChatTurn -->
+      <path d="M 370,200 C 280,220 220,230 200,240" class="arrow-line" marker-end="url(#erEnd)"/>
+      <text x="240" y="225" class="text edge-lbl">1 — N</text>
+
+      <!-- Document 1..1 DocumentExtraction -->
+      <path d="M 610,340 L 720,340" class="arrow-line" marker-end="url(#erEnd)"/>
+      <text x="635" y="332" class="text edge-lbl">1 — 1</text>
+
+      <!-- Deal 1..1 Messages -->
+      <path d="M 610,180 C 900,210 980,220 1060,270" class="arrow-line" marker-end="url(#erEnd)"/>
+      <text x="940" y="220" class="text edge-lbl">1 — 1</text>
+
+      <!-- User 1..N ApprovalEvent -->
+      <path d="M 610,515 L 720,515" class="arrow-line" marker-end="url(#erEnd)"/>
+      <text x="635" y="508" class="text edge-lbl">1 — N (performs)</text>
+
+      <!-- Deal 1..N ApprovalEvent -->
+      <path d="M 530,230 C 700,420 800,440 840,460" class="arrow-line" marker-end="url(#erEnd)"/>
+      <text x="700" y="395" class="text edge-lbl">1 — N (receives)</text>
+
+    </svg>
+    <figcaption>Figure 2 — Logical data model. Solid edges denote ownership; cardinality is labelled on each edge.</figcaption>
+  </figure>
+
+  <h3>State flow through the entities</h3>
+  <ol>
+    <li><strong>Borrower → Deal.</strong> One borrower in Phase‑1 owns one deal; status starts as <code>intake_in_progress</code>.</li>
+    <li><strong>ChatTurn → LoanApplication.</strong> Each borrower turn invokes the Intake Agent: L0 <code>intake_slots</code> extracts a patch, L1 <code>LoanApplicationPatch</code> (structured Bedrock) runs only when L0 is not confident, then <code>try_apply_application_patch</code> deep-merges and validates against <code>LoanApplicationData</code> before commit. L2 replies use templates when progress was made; otherwise <code>IntakeTurnResult</code>. When <code>missing_fields</code> is empty, the orchestrator transitions <code>Deal.status</code> to <code>docs_pending</code>.</li>
+    <li><strong>Document → DocumentExtraction → DealContext.</strong> Each upload creates a <code>Document</code>; the background pipeline produces a <code>DocumentExtraction</code> whose <em>normalized</em> values are merged additively into <code>DealContext</code>. Human <code>corrections</code> always win over machine values.</li>
+    <li><strong>DealContext + LoanApplication → Eligibility.</strong> The Eligibility Agent reads both, computes DTI/LTV deterministically via <code>rules.py</code>, then asks the LLM to explain and refine the conditions list — never to change the status, DTI, or LTV.</li>
+    <li><strong>Eligibility → Messages.</strong> The Explanation &amp; Messaging Agent writes <code>internal_draft</code> and <code>borrower_draft</code>. Both stay invisible to the borrower until <code>borrower_approved=True</code>.</li>
+    <li><strong>ApprovalEvent.</strong> Every gate crossing — extraction edits, eligibility approval, per-channel message approval — appends an immutable audit row.</li>
+  </ol>
+</section>
+
+<!-- =================================================================== -->
+<section id="agents">
+  <h2>6. Agent orchestration view</h2>
+  <p class="section-lede">
+    Four agents and one orchestrator form a LangGraph state machine over a typed
+    <code>LoanCopilotState</code>. Each agent owns a single concern, calls only the tools
+    granted to it, and emits structured outputs that are persisted by the backend rather
+    than printed straight to the user.
+  </p>
+
+  <figure class="diagram" aria-label="Agent orchestration diagram">
+    <svg viewBox="0 0 1200 760" role="img" aria-labelledby="agent-title agent-desc" preserveAspectRatio="xMidYMid meet">
+      <title id="agent-title">Agent orchestration — LangGraph nodes, tools, and external calls</title>
+      <desc id="agent-desc">
+        The Orchestrator routes between four agent nodes. Borrower Chat &amp; Intake writes
+        LoanApplication; Document Understanding calls Textract and writes DealContext;
+        Eligibility computes DTI/LTV and a conditions list; Explanation &amp; Messaging
+        drafts internal and borrower messages. All agents are traced in LangSmith and call
+        Bedrock for LLM completions. A human approval gate sits before the borrower.
+      </desc>
+
+      <defs>
+        <marker id="agArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+        </marker>
+        <marker id="agArrowGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#16a34a"/>
+        </marker>
+      </defs>
+
+      <!-- Triggers column (left) -->
+      <text x="20" y="34" class="text subtitle">TRIGGERS</text>
+      <g>
+        <rect x="20" y="60" width="180" height="60" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="1.4"/>
+        <text x="110" y="84" text-anchor="middle" class="text title" font-size="12.5">Borrower sends</text>
+        <text x="110" y="100" text-anchor="middle" class="text title" font-size="12.5">chat message</text>
+        <text x="110" y="114" text-anchor="middle" class="text lbl-sm">POST /borrower/chat/messages</text>
+      </g>
+      <g>
+        <rect x="20" y="240" width="180" height="60" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="1.4"/>
+        <text x="110" y="264" text-anchor="middle" class="text title" font-size="12.5">Borrower uploads</text>
+        <text x="110" y="280" text-anchor="middle" class="text title" font-size="12.5">document</text>
+        <text x="110" y="294" text-anchor="middle" class="text lbl-sm">POST /documents</text>
+      </g>
+      <g>
+        <rect x="20" y="420" width="180" height="60" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="1.4"/>
+        <text x="110" y="444" text-anchor="middle" class="text title" font-size="12.5">LO runs eligibility</text>
+        <text x="110" y="460" text-anchor="middle" class="text title" font-size="12.5">(or auto on intake done)</text>
+        <text x="110" y="474" text-anchor="middle" class="text lbl-sm">POST /deals/{id}/eligibility/run</text>
+      </g>
+
+      <!-- Orchestrator central -->
+      <g>
+        <rect x="260" y="30" width="700" height="40" rx="20" fill="#7c3aed"/>
+        <text x="610" y="56" text-anchor="middle" class="text title" fill="#ffffff">Orchestrator · LangGraph build_graph() over LoanCopilotState</text>
+      </g>
+
+      <!-- Agent 1: Borrower Chat & Intake -->
+      <g>
+        <rect x="260" y="110" width="380" height="168" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="1.6"/>
+        <rect x="260" y="110" width="380" height="26" fill="#16a34a"/>
+        <text x="450" y="128" text-anchor="middle" class="text title" fill="#ffffff">Borrower Chat &amp; Intake Agent</text>
+        <text x="276" y="156" class="text lbl"><tspan font-weight="700">In:</tspan> latest borrower message · LoanApplication snapshot · missing_fields</text>
+        <text x="276" y="172" class="text lbl"><tspan font-weight="700">L0:</tspan> intake_slots.py — regex (0 Bedrock tokens)</text>
+        <text x="276" y="188" class="text lbl"><tspan font-weight="700">L1:</tspan> LoanApplicationPatch via get_structured_model (if L0 not confident)</text>
+        <text x="276" y="204" class="text lbl"><tspan font-weight="700">Persist:</tspan> try_apply_application_patch → LoanApplicationData → DB</text>
+        <text x="276" y="220" class="text lbl"><tspan font-weight="700">L2:</tspan> template reply (0 tokens) or IntakeTurnResult (complex turns)</text>
+        <text x="276" y="236" class="text lbl"><tspan font-weight="700">Out:</tspan> assistant_reply · application_snapshot · missing_fields</text>
+        <text x="276" y="262" class="text lbl-sm">missing_fields=[] → Deal.status=docs_pending</text>
+      </g>
+
+      <!-- Agent 2: Document Understanding -->
+      <g>
+        <rect x="260" y="280" width="380" height="140" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="1.6"/>
+        <rect x="260" y="280" width="380" height="26" fill="#16a34a"/>
+        <text x="450" y="298" text-anchor="middle" class="text title" fill="#ffffff">Document Understanding Agent</text>
+        <text x="276" y="326" class="text lbl"><tspan font-weight="700">In:</tspan> document bytes · filename · doc-type hint</text>
+        <text x="276" y="342" class="text lbl"><tspan font-weight="700">Tools:</tspan> ocr_runner (Textract) · extraction_mapper · classifier</text>
+        <text x="276" y="358" class="text lbl"><tspan font-weight="700">Classify:</tspan> filename/OCR heuristics; LLM DocumentClassification if confidence &lt; 0.75</text>
+        <text x="276" y="374" class="text lbl"><tspan font-weight="700">Out:</tspan> predicted_type · normalized JSON · confidence map</text>
+        <text x="276" y="392" class="text lbl-sm">Mapping is deterministic; LLM never invents field values beyond classification.</text>
+        <text x="276" y="402" class="text lbl-sm">Worker merges into DealContext additively; existing human corrections are preserved.</text>
+      </g>
+
+      <!-- Agent 3: Eligibility & Conditions -->
+      <g>
+        <rect x="260" y="460" width="380" height="140" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="1.6"/>
+        <rect x="260" y="460" width="380" height="26" fill="#16a34a"/>
+        <text x="450" y="478" text-anchor="middle" class="text title" fill="#ffffff">Eligibility &amp; Conditions Agent</text>
+        <text x="276" y="506" class="text lbl"><tspan font-weight="700">In:</tspan> LoanApplication · DealContext (incl. human corrections)</text>
+        <text x="276" y="522" class="text lbl"><tspan font-weight="700">Tools:</tspan> rules.py (DTI 43/50 · LTV 80/95 · condition templates)</text>
+        <text x="276" y="538" class="text lbl"><tspan font-weight="700">Out:</tspan> EligibilityResult {status, dti, ltv} · ConditionsList</text>
+        <text x="276" y="556" class="text lbl-sm">rules.py first; ConditionRefinement (structured) polishes title/rationale only.</text>
+        <text x="276" y="582" class="text lbl-sm">status ∈ {green, yellow, red}; conditions are templated &amp; explainable.</text>
+      </g>
+
+      <!-- Agent 4: Explanation & Messaging -->
+      <g>
+        <rect x="700" y="460" width="380" height="140" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="1.6"/>
+        <rect x="700" y="460" width="380" height="26" fill="#16a34a"/>
+        <text x="890" y="478" text-anchor="middle" class="text title" fill="#ffffff">Explanation &amp; Messaging Agent</text>
+        <text x="716" y="506" class="text lbl"><tspan font-weight="700">In:</tspan> EligibilityResult · ConditionsList · identity fields</text>
+        <text x="716" y="522" class="text lbl"><tspan font-weight="700">Schema:</tspan> MessageDrafts via get_structured_model; template fallback</text>
+        <text x="716" y="538" class="text lbl"><tspan font-weight="700">Out:</tspan> internal_draft (LO rationale) · borrower_draft (plain language)</text>
+        <text x="716" y="556" class="text lbl-sm">prompt: "Explain in honest plain language; no binding commitments or legal claims."</text>
+        <text x="716" y="582" class="text lbl-sm">Both drafts persisted; neither is visible to borrower until approved.</text>
+      </g>
+
+      <!-- Human-in-the-loop gate -->
+      <g>
+        <rect x="700" y="280" width="380" height="140" rx="10" fill="#ffedd5" stroke="#ea580c" stroke-width="1.8"/>
+        <rect x="700" y="280" width="380" height="26" fill="#ea580c"/>
+        <text x="890" y="298" text-anchor="middle" class="text title" fill="#ffffff">Human-in-the-loop approval gate</text>
+        <text x="716" y="326" class="text lbl">LO / Processor edits and approves:</text>
+        <text x="730" y="346" class="text lbl">· extraction corrections (per document)</text>
+        <text x="730" y="362" class="text lbl">· eligibility status &amp; conditions list</text>
+        <text x="730" y="378" class="text lbl">· internal_draft (internal_approved=true)</text>
+        <text x="730" y="394" class="text lbl">· borrower_draft (borrower_approved=true)</text>
+        <text x="716" y="412" class="text lbl-sm">approval_service enforces invariant: borrower endpoints only return approved content.</text>
+      </g>
+
+      <!-- External services on right -->
+      <g>
+        <rect x="700" y="110" width="180" height="50" rx="8" fill="#fce7f3" stroke="#db2777" stroke-width="1.4"/>
+        <text x="790" y="133" text-anchor="middle" class="text title" font-size="12.5" fill="#831843">AWS Bedrock</text>
+        <text x="790" y="150" text-anchor="middle" class="text lbl-sm">get_structured_model(schema)</text>
+
+        <rect x="900" y="110" width="180" height="50" rx="8" fill="#fce7f3" stroke="#db2777" stroke-width="1.4"/>
+        <text x="990" y="133" text-anchor="middle" class="text title" font-size="12.5" fill="#831843">AWS Textract</text>
+        <text x="990" y="150" text-anchor="middle" class="text lbl-sm">analyze_document / analyze_expense</text>
+
+        <rect x="700" y="180" width="380" height="50" rx="8" fill="#fce7f3" stroke="#db2777" stroke-width="1.4"/>
+        <text x="890" y="203" text-anchor="middle" class="text title" font-size="12.5" fill="#831843">LangSmith</text>
+        <text x="890" y="220" text-anchor="middle" class="text lbl-sm">tags: intake_extract · intake_reply · eligibility · messaging · document_understanding</text>
+      </g>
+
+      <!-- Persistence row at bottom -->
+      <g>
+        <rect x="260" y="640" width="180" height="60" rx="8" fill="#fef3c7" stroke="#ca8a04" stroke-width="1.4"/>
+        <text x="350" y="664" text-anchor="middle" class="text title" font-size="12.5" fill="#713f12">LoanApplication</text>
+        <text x="350" y="682" text-anchor="middle" class="text lbl-sm">(via deals_service)</text>
+
+        <rect x="460" y="640" width="180" height="60" rx="8" fill="#fef3c7" stroke="#ca8a04" stroke-width="1.4"/>
+        <text x="550" y="664" text-anchor="middle" class="text title" font-size="12.5" fill="#713f12">DealContext + Extractions</text>
+        <text x="550" y="682" text-anchor="middle" class="text lbl-sm">(documents_service)</text>
+
+        <rect x="660" y="640" width="180" height="60" rx="8" fill="#fef3c7" stroke="#ca8a04" stroke-width="1.4"/>
+        <text x="750" y="664" text-anchor="middle" class="text title" font-size="12.5" fill="#713f12">DealContext.eligibility</text>
+        <text x="750" y="682" text-anchor="middle" class="text lbl-sm">+ conditions</text>
+
+        <rect x="860" y="640" width="180" height="60" rx="8" fill="#fef3c7" stroke="#ca8a04" stroke-width="1.4"/>
+        <text x="950" y="664" text-anchor="middle" class="text title" font-size="12.5" fill="#713f12">Messages</text>
+        <text x="950" y="682" text-anchor="middle" class="text lbl-sm">(both drafts + approvals)</text>
+      </g>
+
+      <!-- ARROWS: triggers to orchestrator routing -->
+      <path d="M 200,90 L 260,180" class="arrow-line" marker-end="url(#agArrow)"/>
+      <path d="M 200,270 L 260,350" class="arrow-line" marker-end="url(#agArrow)"/>
+      <path d="M 200,450 L 260,530" class="arrow-line" marker-end="url(#agArrow)"/>
+
+      <!-- Orchestrator -> agents (down) -->
+      <path d="M 450,70 L 450,110" class="arrow-line" stroke="#7c3aed" marker-end="url(#agArrow)"/>
+      <path d="M 890,70 L 890,280" class="arrow-line" stroke="#7c3aed" marker-end="url(#agArrow)"/>
+
+      <!-- Agents -> Bedrock -->
+      <path d="M 640,170 L 700,135" class="arrow-line" marker-end="url(#agArrow)"/>
+      <text x="650" y="155" class="text edge-lbl">LLM</text>
+      <path d="M 640,340 C 670,250 700,210 770,160" class="arrow-line" marker-end="url(#agArrow)"/>
+      <text x="688" y="245" class="text edge-lbl">LLM (refine)</text>
+      <path d="M 640,520 C 680,400 700,260 770,160" class="arrow-line" marker-end="url(#agArrow)"/>
+      <text x="666" y="395" class="text edge-lbl">LLM</text>
+      <path d="M 1080,510 C 1130,340 1110,200 990,160" class="arrow-line" marker-end="url(#agArrow)"/>
+      <text x="1100" y="370" class="text edge-lbl">LLM</text>
+
+      <!-- Document Understanding -> Textract -->
+      <path d="M 640,360 C 800,360 900,250 990,160" class="arrow-line" marker-end="url(#agArrow)"/>
+      <text x="800" y="320" class="text edge-lbl">OCR</text>
+
+      <!-- All agents -> LangSmith (dashed) -->
+      <path d="M 640,200 C 680,200 690,205 700,205" class="arrow-line dashed" marker-end="url(#agArrow)"/>
+      <text x="640" y="220" class="text edge-lbl">trace</text>
+
+      <!-- Eligibility -> Messaging (sequential) -->
+      <path d="M 640,530 L 700,530" class="arrow-line" stroke="#16a34a" stroke-width="2" marker-end="url(#agArrowGreen)"/>
+      <text x="648" y="522" class="text edge-lbl" fill="#15803d" font-weight="700">then</text>
+
+      <!-- Messaging -> Human gate -->
+      <path d="M 890,460 L 890,420" class="arrow-line" stroke="#16a34a" stroke-width="2" marker-end="url(#agArrowGreen)"/>
+      <text x="898" y="442" class="text edge-lbl" fill="#15803d">drafts ready</text>
+
+      <!-- Document Understanding -> Human gate (extraction review) -->
+      <path d="M 640,350 L 700,350" class="arrow-line" stroke="#16a34a" stroke-width="2" marker-end="url(#agArrowGreen)"/>
+      <text x="644" y="342" class="text edge-lbl" fill="#15803d">review</text>
+
+      <!-- Agents -> persistence row -->
+      <path d="M 450,250 L 380,640" class="arrow-line dashed" marker-end="url(#agArrow)"/>
+      <path d="M 480,420 L 540,640" class="arrow-line dashed" marker-end="url(#agArrow)"/>
+      <path d="M 530,600 L 730,640" class="arrow-line dashed" marker-end="url(#agArrow)"/>
+      <path d="M 890,600 L 950,640" class="arrow-line dashed" marker-end="url(#agArrow)"/>
+
+    </svg>
+    <figcaption>Figure 3 — Agent orchestration. Green arrows are intra-graph control flow; pink boxes are external services; the orange box is the mandatory human gate that approval_service enforces server-side.</figcaption>
+  </figure>
+
+  <h3 id="llm-schema-pattern">Production LLM schema pattern</h3>
+  <p>
+    All agents that persist machine-generated business data share one pattern: define a Pydantic
+    <em>agent I/O</em> schema, call Bedrock through
+    <code>services/bedrock/client.get_structured_model(schema)</code> (LangChain
+    <code>with_structured_output</code>), then validate and merge results in application code
+    before writing to the database. This replaces ad-hoc “return JSON only” prompts and
+    <code>json.loads</code> repair paths.
+  </p>
+
+  <table>
+    <thead>
+      <tr><th>Module</th><th>Role</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>schemas/agent_io.py</code></td>
+        <td>Canonical structured-output contracts: <code>LoanApplicationPatch</code>, <code>IntakeTurnResult</code>, <code>MessageDrafts</code>, <code>ConditionRefinement</code>, <code>DocumentClassification</code>.</td>
+      </tr>
+      <tr>
+        <td><code>services/bedrock/client.py</code></td>
+        <td><code>get_chat_model()</code> and <code>get_structured_model(schema, tags, temperature)</code> — single factory for Bedrock + schema binding.</td>
+      </tr>
+      <tr>
+        <td><code>agents/intake_slots.py</code></td>
+        <td>L0 deterministic slot parsing and <code>is_l0_confident()</code> gate for L1 escalation.</td>
+      </tr>
+      <tr>
+        <td><code>agents/tools/application_writer.py</code></td>
+        <td><code>get_application_snapshot</code>, <code>apply_application_patch</code>, <code>try_apply_application_patch</code> (rollback on <code>ValidationError</code>).</td>
+      </tr>
+      <tr>
+        <td><code>schemas/loan_application.py</code></td>
+        <td>Authoritative <code>LoanApplicationData</code> — every patch is merged then validated here before <code>LoanApplication.data</code> is committed.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>Tiered borrower intake (L0 → L1 → L2)</h4>
+  <p>Each <code>POST /borrower/chat/messages</code> turn runs through three tiers to balance language understanding with token cost:</p>
+  <table>
+    <thead>
+      <tr><th>Tier</th><th>Mechanism</th><th>Typical tokens</th><th>When it runs</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>L0</strong></td>
+        <td><code>extract_patch_from_message</code> in <code>intake_slots.py</code> (regex / heuristics)</td>
+        <td>0</td>
+        <td>Every turn; extracts all slots the message clearly states.</td>
+      </tr>
+      <tr>
+        <td><strong>L1</strong></td>
+        <td><code>get_structured_model(LoanApplicationPatch)</code></td>
+        <td>Small (schema-bound)</td>
+        <td>Only when L0 did not confidently answer the <em>next</em> missing field (e.g. ambiguous amounts).</td>
+      </tr>
+      <tr>
+        <td><strong>L2</strong></td>
+        <td>Template <code>_template_reply</code> or <code>get_structured_model(IntakeTurnResult)</code></td>
+        <td>0 or small</td>
+        <td>Reply only: templates when a patch applied or L1 was skipped; LLM reply when extraction failed entirely.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <strong>Structured output vs tool calling.</strong> The provider forces the completion into the
+    given Pydantic shape (structured output). The intake agent does <em>not</em> expose
+    <code>application_writer</code> as an LLM-invoked tool; the backend calls
+    <code>try_apply_application_patch</code> after extraction. Tool calling remains available for
+    future nodes but is not used for intake persistence in the current implementation.
+  </div>
+
+  <h4>Other agents — structured schemas</h4>
+  <ul>
+    <li><strong>Eligibility:</strong> <code>rules.py</code> computes status, DTI, LTV, and condition templates; <code>ConditionRefinement</code> may only update <code>title</code> and <code>rationale</code> per condition <code>id</code>.</li>
+    <li><strong>Messaging:</strong> <code>MessageDrafts</code> with deterministic template fallback when Bedrock is unavailable.</li>
+    <li><strong>Document understanding:</strong> filename/OCR heuristics first; <code>DocumentClassification</code> when confidence &lt; 0.75; <code>extraction_mapper</code> remains pure functions over OCR output.</li>
+  </ul>
+
+  <h3>Per-agent contracts</h3>
+  <table>
+    <thead>
+      <tr><th>Agent</th><th>Inputs</th><th>Tools</th><th>Outputs</th><th>Determinism</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Borrower Chat &amp; Intake</strong></td>
+        <td>Latest borrower turn; snapshot; <code>missing_fields</code>.</td>
+        <td>L0 <code>intake_slots</code>; L1 <code>LoanApplicationPatch</code>; persist via <code>try_apply_application_patch</code>.</td>
+        <td><code>assistant_reply</code>; <code>application_snapshot</code>; <code>missing_fields</code>.</td>
+        <td>L0/L2 often 0 tokens; L1 on ambiguous turns; DB write always <code>LoanApplicationData</code>-validated.</td>
+      </tr>
+      <tr>
+        <td><strong>Document Understanding</strong></td>
+        <td>Document bytes/URI; filename; optional type hint.</td>
+        <td><code>ocr_runner</code>, <code>extraction_mapper</code>, heuristic + <code>DocumentClassification</code> classifier.</td>
+        <td><code>predicted_type</code>, normalized fields, confidence map.</td>
+        <td>LLM classification only when heuristic confidence &lt; 0.75; mapping deterministic.</td>
+      </tr>
+      <tr>
+        <td><strong>Eligibility &amp; Conditions</strong></td>
+        <td><code>LoanApplication</code> + <code>DealContext</code> (with corrections).</td>
+        <td><code>rules.py</code>; optional <code>ConditionRefinement</code> structured output.</td>
+        <td><code>EligibilityResult</code> (status, DTI, LTV); <code>ConditionsList</code>.</td>
+        <td>Status/DTI/LTV and condition set authoritative; LLM polishes copy only.</td>
+      </tr>
+      <tr>
+        <td><strong>Explanation &amp; Messaging</strong></td>
+        <td>Eligibility result + conditions + identity context.</td>
+        <td><code>MessageDrafts</code> via <code>get_structured_model</code>; template fallback.</td>
+        <td><code>internal_draft</code> + <code>borrower_draft</code>.</td>
+        <td>Both drafts persisted; never auto-published.</td>
+      </tr>
+      <tr>
+        <td><strong>Orchestrator</strong></td>
+        <td>Triggers from API routers (chat turn / upload / run-eligibility).</td>
+        <td>LangGraph edges and conditional routing.</td>
+        <td>State transitions on <code>Deal.status</code>.</td>
+        <td>Pure control flow; no LLM.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- =================================================================== -->
+<section id="flows">
+  <h2>7. End-to-end sequence flows</h2>
+  <p class="section-lede">
+    The MVP supports one happy path with five clearly separated stages. Each stage is
+    independently retryable and each crosses a documented persistence boundary before the
+    next stage can run.
+  </p>
+
+  <figure class="diagram" aria-label="End-to-end sequence diagram">
+    <svg viewBox="0 0 1200 940" role="img" aria-labelledby="seq-title seq-desc" preserveAspectRatio="xMidYMid meet">
+      <title id="seq-title">End-to-end sequence — borrower intake through approved borrower message</title>
+      <desc id="seq-desc">
+        Six lifelines: Borrower, Borrower Portal, FastAPI Backend, Agent Layer, External
+        Services, LO Console. Messages flow top-to-bottom showing the five main MVP stages.
+      </desc>
+
+      <defs>
+        <marker id="seqArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+        </marker>
+      </defs>
+
+      <!-- Lifelines -->
+      <g font-family="inherit">
+        <!-- Headers -->
+        <rect x="40"  y="40" width="140" height="44" rx="6" fill="#e0e7ff" stroke="#4f46e5"/>
+        <text x="110" y="68" text-anchor="middle" class="text title" font-size="12.5" fill="#312e81">Borrower</text>
+
+        <rect x="220" y="40" width="160" height="44" rx="6" fill="#e0e7ff" stroke="#4f46e5"/>
+        <text x="300" y="68" text-anchor="middle" class="text title" font-size="12.5" fill="#312e81">Borrower Portal</text>
+
+        <rect x="420" y="40" width="160" height="44" rx="6" fill="#e0f2fe" stroke="#0ea5e9"/>
+        <text x="500" y="68" text-anchor="middle" class="text title" font-size="12.5" fill="#075985">FastAPI Backend</text>
+
+        <rect x="620" y="40" width="160" height="44" rx="6" fill="#ede9fe" stroke="#7c3aed"/>
+        <text x="700" y="68" text-anchor="middle" class="text title" font-size="12.5" fill="#4c1d95">Agent Layer</text>
+
+        <rect x="820" y="40" width="160" height="44" rx="6" fill="#fce7f3" stroke="#db2777"/>
+        <text x="900" y="68" text-anchor="middle" class="text title" font-size="12.5" fill="#831843">External Services</text>
+
+        <rect x="1020" y="40" width="140" height="44" rx="6" fill="#e0e7ff" stroke="#4f46e5"/>
+        <text x="1090" y="68" text-anchor="middle" class="text title" font-size="12.5" fill="#312e81">LO Console</text>
+
+        <!-- Lifelines (dashed vertical) -->
+        <line x1="110"  y1="84" x2="110"  y2="920" stroke="#94a3b8" stroke-dasharray="3 4"/>
+        <line x1="300"  y1="84" x2="300"  y2="920" stroke="#94a3b8" stroke-dasharray="3 4"/>
+        <line x1="500"  y1="84" x2="500"  y2="920" stroke="#94a3b8" stroke-dasharray="3 4"/>
+        <line x1="700"  y1="84" x2="700"  y2="920" stroke="#94a3b8" stroke-dasharray="3 4"/>
+        <line x1="900"  y1="84" x2="900"  y2="920" stroke="#94a3b8" stroke-dasharray="3 4"/>
+        <line x1="1090" y1="84" x2="1090" y2="920" stroke="#94a3b8" stroke-dasharray="3 4"/>
+      </g>
+
+      <!-- Stage 1: Intake -->
+      <g>
+        <rect x="20" y="100" width="1160" height="22" fill="#eef2ff"/>
+        <text x="30" y="116" class="text title" font-size="12" fill="#312e81">Stage 1 — Borrower intake (chat)</text>
+      </g>
+
+      <!-- Borrower -> Portal -->
+      <path d="M 110,140 L 296,140" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="120" y="134" class="text edge-lbl">1. Open /borrower/login, request session</text>
+
+      <!-- Portal -> Backend (auth) -->
+      <path d="M 300,164 L 496,164" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="310" y="158" class="text edge-lbl">2. POST /auth/borrower/session → signed token (scoped to deal_id)</text>
+
+      <!-- Borrower -> Portal (chat turn) -->
+      <path d="M 110,194 L 296,194" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="120" y="188" class="text edge-lbl">3. Send chat message</text>
+
+      <!-- Portal -> Backend -->
+      <path d="M 300,218 L 496,218" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="310" y="212" class="text edge-lbl">4. POST /borrower/chat/messages</text>
+
+      <!-- Backend -> Agent -->
+      <path d="M 500,242 L 696,242" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="510" y="236" class="text edge-lbl">5. invoke build_graph() · intake node</text>
+
+      <!-- Agent self: L0 (no Bedrock) -->
+      <path d="M 700,258 C 760,258 760,274 700,274" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="770" y="268" class="text edge-lbl">6. L0 intake_slots → patch (often 0 Bedrock tokens)</text>
+
+      <!-- Agent -> External (Bedrock, conditional) -->
+      <path d="M 700,290 L 896,290" class="arrow-line dashed" marker-end="url(#seqArrow)"/>
+      <text x="710" y="284" class="text edge-lbl">7. [if needed] get_structured_model(LoanApplicationPatch)</text>
+
+      <!-- Agent self: persist -->
+      <path d="M 700,314 C 760,314 760,330 700,330" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="770" y="324" class="text edge-lbl">8. try_apply_application_patch · LoanApplicationData validate · DB</text>
+
+      <!-- Agent <- External (L2 reply, optional) -->
+      <path d="M 896,354 L 704,354" class="arrow-line dashed" marker-end="url(#seqArrow)"/>
+      <text x="710" y="348" class="text edge-lbl">9. template or IntakeTurnResult → assistant_reply · LangSmith tags</text>
+
+      <!-- Agent -> Backend -->
+      <path d="M 696,378 L 504,378" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="510" y="372" class="text edge-lbl">10. application_snapshot, missing_fields, ChatTurn rows</text>
+
+      <!-- Backend -> Portal -->
+      <path d="M 496,402 L 304,402" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="310" y="396" class="text edge-lbl">11. assistant turn + StatusPanel (loops 3–11 until missing_fields=[])</text>
+
+      <!-- Stage 2: Documents -->
+      <g>
+        <rect x="20" y="430" width="1160" height="22" fill="#fef3c7"/>
+        <text x="30" y="446" class="text title" font-size="12" fill="#713f12">Stage 2 — Document upload &amp; understanding</text>
+      </g>
+
+      <!-- Borrower -> Portal upload -->
+      <path d="M 110,470 L 296,470" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="120" y="464" class="text edge-lbl">12. Upload pay stub / W-2 / bank statement</text>
+
+      <!-- Portal -> Backend POST /documents -->
+      <path d="M 300,494 L 496,494" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="310" y="488" class="text edge-lbl">13. POST /documents (multipart) → storage_uri + Document(pending)</text>
+
+      <!-- Backend -> Agent (BackgroundTask) -->
+      <path d="M 500,518 L 696,518" class="arrow-line dashed" marker-end="url(#seqArrow)"/>
+      <text x="510" y="512" class="text edge-lbl">14. BackgroundTasks.run_document_pipeline(document_id)</text>
+
+      <!-- Agent -> External Textract -->
+      <path d="M 700,542 L 896,542" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="710" y="536" class="text edge-lbl">15. Textract analyze_document / analyze_expense</text>
+
+      <!-- External -> Agent -->
+      <path d="M 896,566 L 704,566" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="710" y="560" class="text edge-lbl">16. raw OCR (text, key/values, tables)</text>
+
+      <!-- Agent self: classify + map -->
+      <path d="M 700,590 C 760,590 760,614 700,614" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="770" y="602" class="text edge-lbl">17. heuristics or DocumentClassification · extraction_mapper</text>
+
+      <!-- Agent -> Backend save -->
+      <path d="M 696,638 L 504,638" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="510" y="632" class="text edge-lbl">18. persist DocumentExtraction; merge into DealContext</text>
+
+      <!-- Stage 3: Review -->
+      <g>
+        <rect x="20" y="660" width="1160" height="22" fill="#ffedd5"/>
+        <text x="30" y="676" class="text title" font-size="12" fill="#7c2d12">Stage 3 — LO/Processor reviews extractions</text>
+      </g>
+
+      <!-- LO Console -> Backend -->
+      <path d="M 1090,700 L 504,700" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="510" y="694" class="text edge-lbl">19. GET /documents/{id}/extraction + GET /documents/{id}/file</text>
+
+      <!-- LO Console -> Backend PUT -->
+      <path d="M 1090,724 L 504,724" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="510" y="718" class="text edge-lbl">20. PUT /documents/{id}/extraction (corrections override machine values)</text>
+
+      <!-- Stage 4: Eligibility -->
+      <g>
+        <rect x="20" y="746" width="1160" height="22" fill="#dcfce7"/>
+        <text x="30" y="762" class="text title" font-size="12" fill="#14532d">Stage 4 — Eligibility + messaging draft</text>
+      </g>
+
+      <!-- LO -> Backend run -->
+      <path d="M 1090,786 L 504,786" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="510" y="780" class="text edge-lbl">21. POST /deals/{id}/eligibility/run</text>
+
+      <!-- Backend -> Agent -->
+      <path d="M 500,810 L 696,810" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="510" y="804" class="text edge-lbl">22. rules.py → ConditionRefinement + MessageDrafts (structured)</text>
+
+      <!-- Agent -> Backend -->
+      <path d="M 696,834 L 504,834" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="510" y="828" class="text edge-lbl">23. EligibilityResult, ConditionsList, drafts → Deal.status=ready_for_review</text>
+
+      <!-- Stage 5: Approval & echo -->
+      <g>
+        <rect x="20" y="856" width="1160" height="22" fill="#e0e7ff"/>
+        <text x="30" y="872" class="text title" font-size="12" fill="#312e81">Stage 5 — Approval &amp; borrower-facing publish</text>
+      </g>
+
+      <!-- LO -> Backend approve -->
+      <path d="M 1090,896 L 504,896" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="510" y="890" class="text edge-lbl">24. POST /deals/{id}/eligibility/approve + POST /deals/{id}/messages/approve</text>
+
+      <!-- Backend -> Portal (next borrower poll/turn) -->
+      <path d="M 496,922 L 304,922" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="310" y="916" class="text edge-lbl">25. GET /borrower/application → approved_borrower_message in chat</text>
+
+    </svg>
+    <figcaption>Figure 4 — End-to-end sequence diagram for the Phase-1 happy path. Steps 3–11 repeat per chat turn (Bedrock dashed arrows are conditional). Stage 2 runs once per document; stages 4 and 5 are LO-triggered.</figcaption>
+  </figure>
+
+  <h3>Flow narrative</h3>
+  <ol>
+    <li><strong>Borrower applies via chat.</strong> The borrower receives a signed session token scoped to their deal, then converses with the Intake Agent. Each turn runs L0 regex extraction, optionally L1 <code>LoanApplicationPatch</code> structured output, then <code>try_apply_application_patch</code> to validate and persist <code>LoanApplicationData</code>. Replies use templates when possible. When <code>missing_fields</code> is empty, the orchestrator transitions <code>Deal.status</code> to <code>docs_pending</code>.</li>
+    <li><strong>Documents are classified and extracted.</strong> Each upload writes raw bytes to object storage and enqueues <code>run_document_pipeline</code>. Classification uses filename/OCR heuristics first, then <code>DocumentClassification</code> structured output when confidence is low; Textract OCR and <code>extraction_mapper</code> produce normalized JSON merged into <code>DealContext</code>.</li>
+    <li><strong>LO / processor reviews extractions.</strong> The console renders normalized fields beside the document viewer; <code>PUT /documents/{id}/extraction</code> stores corrections in <code>human_corrections</code> and re-merges <code>DealContext</code>. Corrections always win.</li>
+    <li><strong>Eligibility &amp; conditions are computed.</strong> <code>POST /deals/{id}/eligibility/run</code> runs <code>rules.py</code> for DTI/LTV/status and condition templates, then optional <code>ConditionRefinement</code> structured output (titles/rationales only). The Messaging Agent produces <code>MessageDrafts</code> via structured output with template fallback.</li>
+    <li><strong>Messages are generated and approved.</strong> The LO edits and approves the eligibility result, the conditions list, and per-channel (internal / borrower) messages. Only after <code>borrower_approved=True</code> does the borrower's next <code>GET /borrower/application</code> include the approved message — surfaced inline as a system turn in <code>ChatWindow</code>.</li>
+  </ol>
+</section>
+
+<!-- =================================================================== -->
+<section id="nfr">
+  <h2>8. Non-functional &amp; extensibility</h2>
+
+  <h3>Security</h3>
+  <ul>
+    <li>All endpoints authenticated: staff via JWT, borrower via a signed session token <em>scoped to a single <code>deal_id</code></em>.</li>
+    <li><code>require_deal_access</code> dependency enforces the scoping invariant on every <code>deal_id</code>-bearing endpoint; verified by integration tests and re-verified end-to-end by Playwright in Phase 5.</li>
+    <li>All data in transit over HTTPS; data at rest encrypted (database + object storage).</li>
+    <li>Synthetic-only data in Phase‑1: fixtures and seeds use placeholder PII tokens.</li>
+    <li>Approval invariant enforced server-side by <code>approval_service.py</code>: borrower endpoints never expose <code>internal_draft</code>, and never expose <code>borrower_draft</code> until <code>borrower_approved=True</code>. The UI is a secondary defense.</li>
+  </ul>
+
+  <h3>Observability</h3>
+  <ul>
+    <li>LangSmith runs tag Bedrock calls by purpose: <code>intake_extract</code>, <code>intake_reply</code>, <code>document_understanding</code>, <code>eligibility</code>, <code>messaging</code> (plus legacy project names per agent). Run metadata includes <code>deal_id</code>, <code>document_id</code>, <code>user_id</code>.</li>
+    <li>Structured JSON logs via <code>structlog</code>; <code>X-Request-Id</code> correlates HTTP requests with LangSmith <code>run_id</code> values.</li>
+    <li><code>EventLog</code> table (Phase 6) records <code>intake_complete</code>, <code>document_extracted</code>, <code>eligibility_computed</code>, and <code>messages_approved</code> with timestamps.</li>
+    <li>Health probes: <code>/healthz</code> (liveness) and <code>/readyz</code> (database + storage + Bedrock model reachable).</li>
+  </ul>
+
+  <h3>Performance</h3>
+  <ul>
+    <li>Target: single document classify + OCR + map within 5–10 seconds in the MVP environment.</li>
+    <li>Document pipeline runs asynchronously via FastAPI <code>BackgroundTasks</code>; the API surface remains compatible with a future swap to RQ or Celery for durable retries.</li>
+    <li>Centralized exponential-backoff retries inside the Bedrock and Textract service wrappers (Phase 6).</li>
+    <li>In-process token bucket rate-limits on <code>POST /borrower/chat/messages</code> and <code>POST /documents</code>.</li>
+    <li><strong>Bedrock token efficiency:</strong> tiered intake (L0/L1/L2) avoids an LLM call on most chat turns; document classification uses the LLM only when heuristic confidence &lt; 0.75.</li>
+  </ul>
+
+  <h3>Deployability</h3>
+  <ul>
+    <li>Single Docker Compose stack in dev (<code>postgres</code> + <code>localstack</code> + backend + frontend) with the same env-var contract as deployed environments.</li>
+    <li>Backend and frontend ship as independent container images (Gunicorn/Uvicorn and Next.js standalone respectively).</li>
+    <li>Database portability (SQLite ↔ Postgres) is preserved by sticking to SQLAlchemy-portable types and the built-in <code>JSON</code> column.</li>
+    <li>Terraform IaC and GitHub Actions are explicit future work (Phase 6+).</li>
+  </ul>
+
+  <h3>Extensibility hooks</h3>
+  <div class="grid-3">
+    <div class="card">
+      <h4>More document types</h4>
+      <p>Add a new <code>predicted_type</code> enum value, a new <code>extraction_mapper.map_*</code> function, and a few golden tests. The Document Understanding Agent picks it up via its structured-output classifier.</p>
+    </div>
+    <div class="card">
+      <h4>RAG over policy docs</h4>
+      <p>Plug a vector store behind a new tool exposed to the Eligibility &amp; Messaging agents. State and orchestration are unchanged; only the prompt context grows.</p>
+    </div>
+    <div class="card">
+      <h4>LOS integration</h4>
+      <p>The current <code>approval_service</code> already represents the integration boundary. A future LOS adapter consumes approved <code>Messages</code>, <code>EligibilityResult</code>, and <code>LoanApplication</code> via existing schemas.</p>
+    </div>
+    <div class="card">
+      <h4>Real credit pulls / pricing</h4>
+      <p>Add a new agent node behind a feature flag; the orchestrator can sequence it between Eligibility and Messaging without touching existing nodes.</p>
+    </div>
+    <div class="card">
+      <h4>Multi-borrower deals</h4>
+      <p>Promote the <code>Borrower ↔ Deal</code> relationship to many-to-many through a join table; <code>LoanApplicationData</code> already nests identity, contact, employment, income, and assets per borrower in its schema shape.</p>
+    </div>
+    <div class="card">
+      <h4>Durable background work</h4>
+      <p>Swap FastAPI <code>BackgroundTasks</code> for RQ or Celery behind the existing <code>workers/document_pipeline.run_document_pipeline</code> entry point — no API surface change required.</p>
+    </div>
+  </div>
+
+  <h3>Known risks (acknowledged, mitigated, or deferred)</h3>
+  <ul>
+    <li><strong>OCR accuracy variability</strong> on synthetic documents. Mitigated by mandatory LO/processor review (Phase 5 <code>ExtractionReview</code>) where human corrections always override machine values.</li>
+    <li><strong>Regulatory positioning</strong> of "pre-qualification" vs "pre-approval" is explicitly out of scope; borrower-facing surfaces carry a "Draft — not yet approved by LO" banner.</li>
+    <li><strong>Guideline depth</strong> beyond DTI/LTV thresholds is deferred to later phases that will likely require RAG over real policy documents and updated data models / prompts.</li>
+    <li><strong>AWS regional parity</strong> between Bedrock and Textract must be confirmed before deploy; <code>services/ocr/base.py</code> abstracts the OCR provider so we can swap if entitlement is delayed.</li>
+  </ul>
+</section>
+
+<footer class="doc-footer">
+  Generated from <code>docs/requirements.md</code>, <code>docs/design.md</code>, and
+  <code>docs/implementation-plan.md</code>. Updated 2026‑05‑29 for production LLM schema pattern
+  (<code>agent_io.py</code>, <code>get_structured_model</code>, tiered intake L0/L1/L2).
+  Self-contained — no external CSS, JS, fonts, images, or diagrams. Open in any modern browser or print to PDF.
+</footer>
+
+</main>
+</body>
+</html>

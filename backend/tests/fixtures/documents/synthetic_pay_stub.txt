@@ -1,0 +1,27 @@
+PAY STUB — EARNINGS STATEMENT
+================================
+
+Employer:          Acme Corp
+Employee:          Alice Borrower
+Employee ID:       AB-1042
+Pay Date:          04/15/2026
+Pay Period:        04/01/2026 - 04/15/2026
+Pay Frequency:     Bi-Weekly
+
+EARNINGS
+--------
+Regular Hours:     80.00
+Hourly Rate:       $53.85
+Gross Pay:         8500.00
+
+DEDUCTIONS
+----------
+Federal Tax:       1275.00
+State Tax:         425.00
+Social Security:   527.00
+Medicare:          123.25
+Net Pay:           6149.75
+
+YTD GROSS:         34000.00
+
+This is a synthetic pay stub for MVP demo and testing purposes only.
