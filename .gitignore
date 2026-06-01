@@ -21,3 +21,11 @@ frontend/out/
 **/.env
 **/.env.local
 
+# Local document uploads (dev storage)
+backend/local_storage/
+
+# Synthetic PDF generator (local output)
+tools/synthetic-pdf-generator/output/
+tools/synthetic-pdf-generator/.venv/
+tools/synthetic-pdf-generator/__pycache__/
+

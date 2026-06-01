@@ -49,7 +49,7 @@ async def test_document_upload_and_pipeline(async_client: AsyncClient, monkeypat
     finally:
         db.close()
 
-    def _fake_understanding(document_bytes, filename, document_id, doc_type_hint=None):
+    def _fake_understanding(document_bytes, filename, document_id, doc_type_hint=None, on_stage=None):
         ocr = OcrResult(text="Gross Pay: 5000", key_values={"Employer": "Acme"})
         normalized = {
             "income": [

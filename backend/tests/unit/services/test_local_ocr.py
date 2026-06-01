@@ -34,14 +34,13 @@ def test_local_ocr_feeds_extraction_mapper():
     assert out["income"][0]["gross_income"] == 8500.0
 
 
-def test_run_ocr_auto_falls_back_when_textract_unavailable(monkeypatch):
+def test_run_ocr_falls_back_to_local_when_textract_unavailable(monkeypatch):
     def _raise(*_args, **_kwargs):
         raise ClientError(
             {"Error": {"Code": "SubscriptionRequiredException", "Message": "needs subscription"}},
             "AnalyzeDocument",
         )
 
-    monkeypatch.setattr("app.agents.tools.ocr_runner.settings.OCR_BACKEND", "auto")
     monkeypatch.setattr("app.agents.tools.ocr_runner.textract.analyze", _raise)
 
     content = (FIXTURES / "synthetic_pay_stub.txt").read_bytes()

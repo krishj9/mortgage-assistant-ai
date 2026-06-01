@@ -96,7 +96,7 @@ class ConditionRefinement(BaseModel):
 class DocumentClassification(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    predicted_type: Literal["pay_stub", "w2", "bank_statement", "application_1003", "unknown"]
+    predicted_type: Literal["pay_stub", "w2", "bank_statement", "unknown"]
     confidence: float = Field(ge=0.0, le=1.0)
 
 

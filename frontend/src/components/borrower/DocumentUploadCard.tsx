@@ -2,8 +2,36 @@
 
 import { useState, type ChangeEvent } from "react";
 
-import { getDocument, uploadDocument, type DocumentSummary } from "@/lib/api/documents";
+import {
+  subscribeDocumentEvents,
+  uploadDocument,
+  type DocumentProcessingEvent,
+  type DocumentSummary,
+} from "@/lib/api/documents";
 import { getBorrowerToken } from "@/lib/auth";
+
+const STAGE_LABELS: Record<string, string> = {
+  queued: "queued",
+  parsing: "parsing",
+  classifying: "classifying",
+  extracting: "extracting",
+  merging: "merging",
+};
+
+function stageLabel(stage?: string): string {
+  if (!stage) return "processing";
+  return STAGE_LABELS[stage] ?? stage;
+}
+
+function toSummary(event: DocumentProcessingEvent, uploaded: DocumentSummary): DocumentSummary {
+  return {
+    ...uploaded,
+    extraction_status: event.status,
+    predicted_type: event.predicted_type ?? uploaded.predicted_type,
+    classification_confidence:
+      event.classification_confidence ?? uploaded.classification_confidence,
+  };
+}
 
 export function DocumentUploadCard({
   onUploaded,
@@ -12,17 +40,6 @@ export function DocumentUploadCard({
 }) {
   const [status, setStatus] = useState<string>("");
   const [busy, setBusy] = useState(false);
-
-  async function pollUntilDone(token: string, documentId: number) {
-    for (let i = 0; i < 20; i++) {
-      const doc = await getDocument(token, documentId);
-      if (doc.extraction_status === "succeeded" || doc.extraction_status === "failed") {
-        return doc;
-      }
-      await new Promise((r) => setTimeout(r, 500));
-    }
-    return getDocument(token, documentId);
-  }
 
   async function onFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -35,16 +52,33 @@ export function DocumentUploadCard({
 
     setBusy(true);
     setStatus(`Uploading ${file.name}...`);
+    const controller = new AbortController();
+
     try {
       const uploaded = await uploadDocument(token, file);
       setStatus("Processing document...");
-      const finalDoc = await pollUntilDone(token, uploaded.id);
-      setStatus(
-        finalDoc.extraction_status === "succeeded"
-          ? `Processed as ${finalDoc.predicted_type}.`
-          : `Processing ended with status: ${finalDoc.extraction_status}`
-      );
-      onUploaded?.(finalDoc);
+
+      const finalEvent = await subscribeDocumentEvents(token, uploaded.id, {
+        signal: controller.signal,
+        onEvent: (event) => {
+          if (event.status === "running") {
+            setStatus(`Processing… ${stageLabel(event.stage)}`);
+          }
+        },
+        onError: () => {
+          setStatus("Lost connection to processing stream. Check back shortly.");
+        },
+      });
+
+      if (finalEvent?.status === "succeeded") {
+        const finalDoc = toSummary(finalEvent, uploaded);
+        setStatus(`Processed as ${finalDoc.predicted_type}.`);
+        onUploaded?.(finalDoc);
+      } else if (finalEvent?.status === "failed") {
+        setStatus(finalEvent.error ?? "Document processing failed.");
+      } else {
+        setStatus("Processing ended before completion.");
+      }
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -57,7 +91,7 @@ export function DocumentUploadCard({
     <div className="rounded-lg border border-dashed border-border bg-muted/30 p-4">
       <h3 className="text-sm font-semibold text-foreground">Upload a document</h3>
       <p className="mt-1 text-xs text-muted-foreground">
-        Pay stub, W-2, bank statement, or application PDF (synthetic samples for MVP).
+        Pay stub, W-2, or bank statement only (PDF, image, or text).
       </p>
       <input
         type="file"

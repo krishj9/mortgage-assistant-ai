@@ -3,7 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from app.schemas.deal_context import ApplicantMetadata, AssetRecord, IncomeRecord
+from app.agents.document_errors import UnsupportedDocumentError
+from app.schemas.deal_context import IncomeRecord
 from app.services.ocr.base import OcrResult
 
 
@@ -46,6 +47,8 @@ def map_w2(ocr: OcrResult, document_id: int) -> dict[str, Any]:
 
 
 def map_bank_statement(ocr: OcrResult, document_id: int) -> dict[str, Any]:
+    from app.schemas.deal_context import AssetRecord
+
     balance = _find_amount(ocr.text, ["ending balance", "balance", "average balance"])
     record = AssetRecord(
         account_type="checking",
@@ -56,26 +59,17 @@ def map_bank_statement(ocr: OcrResult, document_id: int) -> dict[str, Any]:
     return {"assets": [record.model_dump(mode="json")], "metadata": {}}
 
 
-def map_application_1003(ocr: OcrResult, document_id: int) -> dict[str, Any]:
-    name = ocr.key_values.get("Borrower Name") or ocr.key_values.get("Name")
-    address = ocr.key_values.get("Address")
-    metadata = ApplicantMetadata(
-        name=name,
-        address=address,
-        employer=None,
-        source_document_id=document_id,
-    )
-    return {"income": [], "assets": [], "metadata": metadata.model_dump(mode="json")}
-
-
 MAPPERS = {
     "pay_stub": map_pay_stub,
     "w2": map_w2,
     "bank_statement": map_bank_statement,
-    "application_1003": map_application_1003,
 }
 
 
 def map_extraction(doc_type: str, ocr: OcrResult, document_id: int) -> dict[str, Any]:
-    mapper = MAPPERS.get(doc_type, map_application_1003)
+    mapper = MAPPERS.get(doc_type)
+    if mapper is None:
+        raise UnsupportedDocumentError(
+            "Only pay stubs, W-2s, and bank statements are accepted."
+        )
     return mapper(ocr, document_id)

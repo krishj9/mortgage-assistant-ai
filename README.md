@@ -71,8 +71,11 @@ flowchart TB
 **Document upload**
 
 1. Borrower uploads file → stored (local disk or S3).
-2. Background worker: OCR (`OCR_BACKEND`) → classify → map to income/assets → merge into `deal_context`.
-3. Staff can review/correct extraction in the console.
+2. UI opens **SSE** stream (`GET /documents/{id}/events`) for live status (parsing → extracting → done).
+3. Background worker (LlamaCloud by default):
+   - **Supported types only:** pay stub, W-2, bank statement
+   - LlamaCloud **Parse** → classify → **Extract** (parse job ID) → map to `deal_context`
+4. Staff review parsed text in `raw_ocr.text` plus structured `normalized` fields.
 
 **Eligibility (staff-triggered)**
 
@@ -105,7 +108,7 @@ LoanOfficer-Copilot/
 │   │   ├── schemas/         # Pydantic API + LLM I/O contracts
 │   │   └── services/        # Bedrock, OCR, storage, business logic
 │   ├── alembic/             # DB migrations
-│   ├── scripts/             # seed, load_sample_docs, diagnose_textract
+│   ├── scripts/             # seed, load_sample_docs, diagnose_textract, diagnose_llamaindex
 │   └── tests/
 ├── frontend/                # Next.js 14 App Router + Tailwind
 │   └── src/app/
@@ -125,7 +128,7 @@ LoanOfficer-Copilot/
 | API | Python 3.11+, FastAPI, SQLAlchemy, Alembic, PostgreSQL |
 | Agents | LangGraph, LangChain AWS (Bedrock), optional LangSmith |
 | Frontend | Next.js 14, React 18, Tailwind CSS |
-| OCR | AWS Textract (with **local text fallback** for dev) |
+| Document parsing | LlamaCloud Parse + Extract (default); AWS Textract only when `DOCUMENT_PARSER=textract` |
 | Storage | Local filesystem or S3 (via LocalStack in compose) |
 | Tooling | `uv` (backend), npm (frontend), pytest, Vitest |
 
@@ -137,7 +140,8 @@ LoanOfficer-Copilot/
 - **Python 3.11+** and **[uv](https://github.com/astral-sh/uv)**
 - **Node.js 18+** and npm
 - **AWS credentials** configured for **Amazon Bedrock** (chat and agents)
-- **Amazon Textract** enabled on the account *or* use `OCR_BACKEND=auto` / `local` (see below)
+- **LlamaCloud API key** required for document uploads when `DOCUMENT_PARSER=llamaindex` ([free tier ~10k credits/month](https://www.llamaindex.ai/pricing))
+- **Amazon Textract** only if you explicitly set `DOCUMENT_PARSER=textract` (requires activated Textract on your AWS account)
 
 ---
 
@@ -187,7 +191,17 @@ Synthetic files for upload testing (no real PII):
 - [`samples/synthetic_pay_stub.txt`](samples/synthetic_pay_stub.txt)
 - [`samples/synthetic_w2.txt`](samples/synthetic_w2.txt)
 
-Load fixtures into deal 1 via API:
+**PDF versions** (for LlamaParse / real upload testing) — generate locally:
+
+```bash
+cd tools/synthetic-pdf-generator
+uv sync && uv run python generate.py
+# → output/synthetic_pay_stub.pdf, output/synthetic_w2.pdf
+```
+
+See [`tools/synthetic-pdf-generator/README.md`](tools/synthetic-pdf-generator/README.md) for upload and diagnose steps.
+
+Load text fixtures into deal 1 via API:
 
 ```bash
 cd backend
@@ -207,15 +221,21 @@ Create `backend/.env` (never commit secrets). Typical variables:
 | `AWS_REGION` | Bedrock + Textract region |
 | `BEDROCK_MODEL_ID` | e.g. `anthropic.claude-3-haiku-20240307-v1:0` |
 | `TEXTRACT_REGION` | Usually same as `AWS_REGION` |
-| `OCR_BACKEND` | `auto` (Textract → local fallback), `textract`, or `local` |
+| `DOCUMENT_PARSER` | `llamaindex` (default) or `textract` (explicit AWS opt-in) |
+| `LLAMA_CLOUD_API_KEY` | LlamaCloud API key (alias: `LlamaIndex_API_KEY`) |
+| `LLAMA_PARSE_TIER` | Parse tier: `cost_effective` (default), `fast`, `agentic`, `agentic_plus` |
+| `LLAMA_EXTRACT_TIER` | Extract tier: `cost_effective` (default) or `agentic` |
+| `LLAMA_JOB_TIMEOUT_SEC` | Max wait for Parse/Extract jobs (default `120`) |
 | `STORAGE_BACKEND` | `local` or `s3` |
 | `LOCAL_STORAGE_DIR` | Path for uploaded files when `local` |
 | `LANGSMITH_API_KEY` | Optional tracing |
 
-**OCR notes**
+**Document parsing notes**
 
-- `auto` — Tries Textract; on failure (e.g. account not subscribed), parses `.txt` locally. Good for dev with synthetic files.
-- `local` — Never calls Textract.
+- **Default (`DOCUMENT_PARSER=llamaindex`):** All uploads use LlamaParse → LlamaExtract. Only **pay stub, W-2, and bank statement** are accepted; other types fail with a clear error.
+- **`DOCUMENT_PARSER=textract`:** Uses AWS Textract + regex mapper (dev `.txt` fixtures fall back to local text parsing if Textract is unavailable).
+- **Borrower UI:** Subscribes to `GET /documents/{id}/events` (SSE via fetch + Bearer token) — no client polling loop.
+- Diagnose LlamaCloud: `uv run python -m scripts.diagnose_llamaindex`
 - Diagnose Textract: `uv run python -m scripts.diagnose_textract`
 
 ---
@@ -229,7 +249,7 @@ Create `backend/.env` (never commit secrets). Typical variables:
 | Borrower session | `POST /auth/borrower/session` | — |
 | Deals | `/deals` | Staff JWT |
 | Borrower chat | `/borrower/chat` | Borrower JWT |
-| Documents | `/documents` | Borrower upload; staff read |
+| Documents | `/documents`, `/documents/{id}/events` (SSE) | Borrower upload; staff read |
 | Extractions | `/documents/{id}/extraction` | Staff |
 | Eligibility | `/deals/{id}/eligibility` | Staff |
 | Messages | `/deals/{id}/messages` | Staff |

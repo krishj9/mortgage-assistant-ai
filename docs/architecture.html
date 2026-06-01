@@ -347,9 +347,9 @@
   </p>
   <dl class="meta-grid">
     <div><dt>Document ID</dt><dd>ARCH‑LOAN‑COPILOT‑MVP‑001</dd></div>
-    <div><dt>Version</dt><dd>1.1</dd></div>
+    <div><dt>Version</dt><dd>1.2</dd></div>
     <div><dt>Status</dt><dd>Current</dd></div>
-    <div><dt>Last Updated</dt><dd>2026‑05‑29</dd></div>
+    <div><dt>Last Updated</dt><dd>2026‑06‑01</dd></div>
     <div><dt>Phase</dt><dd>Phase‑1 MVP</dd></div>
     <div><dt>Owner</dt><dd>Engineering</dd></div>
     <div><dt>Sources</dt><dd>requirements.md, design.md, implementation-plan.md</dd></div>
@@ -377,17 +377,18 @@
   <h2>1. System overview</h2>
   <p class="section-lede">
     A web application with a React (Next.js App Router) front end, a FastAPI backend, and a
-    LangGraph + AWS Bedrock agent layer that calls AWS Textract for OCR/IDP. State is
-    persisted in a relational database via SQLAlchemy 2.0 + Alembic; documents live in object
-    storage; every agent run is traced in LangSmith.
+    LangGraph + AWS Bedrock agent layer. Document understanding uses
+    <strong>LlamaCloud Parse + Extract</strong> by default (<code>DOCUMENT_PARSER=llamaindex</code>);
+    AWS Textract is available only when explicitly enabled. State is persisted in PostgreSQL via
+    SQLAlchemy 2.0 + Alembic; documents live in object storage; every agent run is traced in LangSmith.
   </p>
 
   <p>
     The Phase‑1 MVP delivers the end‑to‑end loop for a single W‑2 borrower:
-    <strong>borrower chat intake → document upload → Textract‑backed classification and
-    extraction → eligibility &amp; conditions draft → LO review and approval of extractions,
-    status, and borrower‑facing messages</strong>. The borrower never sees pre‑qualification
-    status or conditions until a loan officer has explicitly approved them.
+    <strong>borrower chat intake → document upload with SSE status → LlamaCloud Parse/Extract for
+    pay stubs, W‑2s, and bank statements → eligibility &amp; conditions draft → LO review and
+    approval of extractions, status, and borrower‑facing messages</strong>. The borrower never sees
+    pre‑qualification status or conditions until a loan officer has explicitly approved them.
   </p>
 
   <div class="callout">
@@ -405,6 +406,22 @@
     while ambiguous natural language still routes to the LLM. Database writes always pass through
     <code>LoanApplicationData</code> validation in <code>try_apply_application_patch</code>.
   </div>
+
+  <div class="callout" style="border-left-color: #0ea5e9;">
+    <strong>Document pipeline &amp; real-time UI (2026‑06‑01).</strong>
+    <ul style="margin: 8px 0 0; padding-left: 20px;">
+      <li><strong>SSE:</strong> After <code>POST /documents</code>, the borrower portal opens
+        <code>GET /documents/{id}/events</code> (fetch stream + Bearer JWT) for live processing
+        updates — no client polling loop.</li>
+      <li><strong>LlamaCloud default:</strong> All supported uploads use LlamaParse then
+        LlamaExtract (Extract reuses the parse job ID). Supported types:
+        <code>pay_stub</code>, <code>w2</code>, <code>bank_statement</code> only.</li>
+      <li><strong>Textract opt-in:</strong> Set <code>DOCUMENT_PARSER=textract</code> to use AWS
+        Textract + regex mapper instead of LlamaCloud.</li>
+      <li><strong>1003 application PDF:</strong> Conversational chat intake captures the simplified
+        1003-like application today. <em>Upload and extraction of Form 1003 PDFs is planned — coming soon.</em></li>
+    </ul>
+  </div>
 </section>
 
 <!-- =================================================================== -->
@@ -416,7 +433,8 @@
       <h4>Phase‑1 goals</h4>
       <ul>
         <li>Borrower can submit a simplified application and upload key documents via a conversational web UI.</li>
-        <li>Automatically classify and OCR pay stubs, W‑2s, bank statements, and a synthetic 1003‑like PDF.</li>
+        <li>Automatically classify and extract <strong>pay stubs, W‑2s, and bank statements</strong> via LlamaCloud (Textract optional).</li>
+        <li>Capture the simplified 1003-like application through <strong>conversational chat intake</strong> (1003 PDF upload — coming soon).</li>
         <li>Extract structured income, asset, and applicant metadata into a normalized <code>DealContext</code>.</li>
         <li>Produce a draft pre‑qualification (DTI/LTV + green/yellow/red) and conditions list for LO review.</li>
         <li>Generate editable internal rationale and borrower‑facing explanations — always behind an approval gate.</li>
@@ -467,7 +485,7 @@
   <p class="section-lede">
     Five logical tiers cooperate to support the borrower → LO loop: client apps, the FastAPI
     backend, an agent layer built on LangGraph, persistent state in a relational DB and
-    object storage, and a set of external managed services (Bedrock, Textract, LangSmith).
+    object storage, and a set of external managed services (Bedrock, LlamaCloud, optional Textract, LangSmith).
   </p>
 
   <div class="legend">
@@ -485,8 +503,9 @@
       <desc id="arch-desc">
         Two browser-based frontends (Borrower Portal, LO Console) call a FastAPI backend.
         The backend coordinates an Agent Layer (LangGraph orchestrator with four agents)
-        that calls AWS Bedrock for LLM completions and AWS Textract for OCR. State is
-        persisted in PostgreSQL and object storage; every agent run is traced in LangSmith.
+        that calls AWS Bedrock for LLM completions and LlamaCloud Parse/Extract for documents
+        (Textract when DOCUMENT_PARSER=textract). State is persisted in PostgreSQL and object
+        storage; every agent run is traced in LangSmith.
       </desc>
 
       <defs>
@@ -504,7 +523,7 @@
         <text x="260" y="92" text-anchor="middle" class="text title" fill="#312e81">Borrower Portal</text>
         <text x="260" y="112" text-anchor="middle" class="text lbl" fill="#312e81">Next.js / React (App Router)</text>
         <text x="260" y="132" text-anchor="middle" class="text lbl-sm">ChatWindow · ChatInput · StatusPanel</text>
-        <text x="260" y="150" text-anchor="middle" class="text lbl-sm">DocumentUploadCard</text>
+        <text x="260" y="150" text-anchor="middle" class="text lbl-sm">DocumentUploadCard · SSE events</text>
       </g>
 
       <g>
@@ -545,7 +564,7 @@
           <text x="950" y="313" text-anchor="middle" class="text lbl" fill="#075985">eligibility · messages</text>
         </g>
 
-        <text x="600" y="346" text-anchor="middle" class="text lbl-sm">services/ · approval_service · workers/document_pipeline (BackgroundTasks)</text>
+        <text x="600" y="346" text-anchor="middle" class="text lbl-sm">services/ · document_event_hub · workers/document_pipeline (BackgroundTasks)</text>
       </g>
 
       <!-- Tier 3: Agent Layer -->
@@ -570,8 +589,8 @@
           <rect x="295" y="475" width="195" height="100" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="1.4"/>
           <text x="392" y="500" text-anchor="middle" class="text title" fill="#14532d" font-size="12.5">Document</text>
           <text x="392" y="516" text-anchor="middle" class="text title" fill="#14532d" font-size="12.5">Understanding Agent</text>
-          <text x="392" y="538" text-anchor="middle" class="text lbl-sm">tools: ocr_runner,</text>
-          <text x="392" y="554" text-anchor="middle" class="text lbl-sm">extraction_mapper</text>
+          <text x="392" y="538" text-anchor="middle" class="text lbl-sm">LlamaParse → Extract</text>
+          <text x="392" y="554" text-anchor="middle" class="text lbl-sm">document_mapper</text>
           <text x="392" y="568" text-anchor="middle" class="text lbl-sm">→ DealContext</text>
         </g>
         <g>
@@ -603,12 +622,16 @@
         <text x="1050" y="470" text-anchor="middle" class="text lbl-sm">BEDROCK_MODEL_ID · structured output</text>
 
         <rect x="940" y="490" width="220" height="50" rx="8" fill="#fce7f3" stroke="#db2777" stroke-width="1.4"/>
-        <text x="1050" y="513" text-anchor="middle" class="text title" fill="#831843" font-size="12.5">AWS Textract</text>
-        <text x="1050" y="530" text-anchor="middle" class="text lbl-sm">analyze_document / analyze_expense</text>
+        <text x="1050" y="513" text-anchor="middle" class="text title" fill="#831843" font-size="12.5">LlamaCloud</text>
+        <text x="1050" y="530" text-anchor="middle" class="text lbl-sm">Parse + Extract (default)</text>
 
-        <rect x="940" y="550" width="220" height="50" rx="8" fill="#fce7f3" stroke="#db2777" stroke-width="1.4"/>
-        <text x="1050" y="573" text-anchor="middle" class="text title" fill="#831843" font-size="12.5">LangSmith</text>
-        <text x="1050" y="590" text-anchor="middle" class="text lbl-sm">Traces · run metadata · projects</text>
+        <rect x="940" y="550" width="220" height="50" rx="8" fill="#fce7f3" stroke="#db2777" stroke-width="1.4" stroke-dasharray="4 3"/>
+        <text x="1050" y="573" text-anchor="middle" class="text title" fill="#831843" font-size="12.5">AWS Textract</text>
+        <text x="1050" y="590" text-anchor="middle" class="text lbl-sm">opt-in · DOCUMENT_PARSER=textract</text>
+
+        <rect x="940" y="610" width="220" height="50" rx="8" fill="#fce7f3" stroke="#db2777" stroke-width="1.4"/>
+        <text x="1050" y="633" text-anchor="middle" class="text title" fill="#831843" font-size="12.5">LangSmith</text>
+        <text x="1050" y="650" text-anchor="middle" class="text lbl-sm">Traces · run metadata · projects</text>
       </g>
 
       <!-- Tier 4: Data -->
@@ -646,9 +669,9 @@
       <path d="M 885,520 L 940,455" class="arrow-line" marker-end="url(#arrow1)"/>
       <text x="892" y="495" class="text edge-lbl">LLM</text>
 
-      <!-- Document Understanding -> Textract -->
+      <!-- Document Understanding -> LlamaCloud -->
       <path d="M 490,540 C 700,540 800,520 940,515" class="arrow-line" marker-end="url(#arrow1)"/>
-      <text x="700" y="555" class="text edge-lbl">OCR</text>
+      <text x="700" y="555" class="text edge-lbl">Parse + Extract</text>
 
       <!-- Orchestrator -> LangSmith -->
       <path d="M 880,575 C 920,580 930,576 940,575" class="arrow-line dashed" marker-end="url(#arrow1)"/>
@@ -674,7 +697,7 @@
   <div class="grid-2">
     <div class="card">
       <h4><span class="badge frontend">Frontend</span> Borrower Portal</h4>
-      <p>Chat-style intake, inline document upload prompts, live status panel showing captured fields and remaining gaps. Scoped to a single deal via a signed borrower session token.</p>
+      <p>Chat-style intake, inline document upload prompts, live status panel showing captured fields and remaining gaps. After upload, <code>DocumentUploadCard</code> subscribes to <code>GET /documents/{id}/events</code> (SSE) for real-time processing stages. Scoped to a single deal via a signed borrower session token.</p>
     </div>
     <div class="card">
       <h4><span class="badge frontend">Frontend</span> LO / Processor Console</h4>
@@ -682,7 +705,7 @@
     </div>
     <div class="card">
       <h4><span class="badge backend">Backend</span> FastAPI APIs</h4>
-      <p>Thin routers per domain (<code>auth</code>, <code>deals</code>, <code>borrower_chat</code>, <code>documents</code>, <code>extractions</code>, <code>eligibility</code>, <code>messages</code>) with business logic isolated in <code>services/</code>. Access control is enforced by <code>require_deal_access</code>.</p>
+      <p>Thin routers per domain (<code>auth</code>, <code>deals</code>, <code>borrower_chat</code>, <code>documents</code> incl. SSE <code>/events</code>, <code>extractions</code>, <code>eligibility</code>, <code>messages</code>) with business logic isolated in <code>services/</code>. Access control is enforced by <code>require_deal_access</code>.</p>
     </div>
     <div class="card">
       <h4><span class="badge orchestrator" style="background: var(--orchestrator-soft); color: var(--orchestrator);">Orchestrator</span> LangGraph state machine</h4>
@@ -697,8 +720,8 @@
       <p>SQLAlchemy 2.0 with a portable JSON column strategy (SQLite locally, JSONB on Postgres). Documents in an object-storage abstraction with local-filesystem and S3 backends.</p>
     </div>
     <div class="card">
-      <h4><span class="badge external">External</span> Bedrock &amp; Textract</h4>
-      <p>Bedrock Converse via <code>langchain-aws</code>: <code>get_chat_model()</code> for free-form use and <code>get_structured_model(PydanticSchema)</code> for schema-bound JSON (no prompt-side <code>json.loads</code>). Model ID is env-configurable (e.g. Claude 3 Haiku locally, Sonnet in prod). Textract <code>analyze_document</code> / <code>analyze_expense</code> as before.</p>
+      <h4><span class="badge external">External</span> Bedrock, LlamaCloud &amp; optional Textract</h4>
+      <p><strong>Bedrock</strong> (via <code>langchain-aws</code>): <code>get_chat_model()</code> and <code>get_structured_model(PydanticSchema)</code> for intake, classification fallback, eligibility, and messaging. <strong>LlamaCloud (default):</strong> <code>services/llamaindex/</code> — LlamaParse then LlamaExtract for pay stub, W-2, and bank statement. <strong>Textract (opt-in):</strong> <code>DOCUMENT_PARSER=textract</code> + <code>extraction_mapper</code>.</p>
     </div>
     <div class="card">
       <h4><span class="badge external">External</span> LangSmith observability</h4>
@@ -749,13 +772,19 @@
         <td><span class="badge external">AWS Bedrock</span></td>
         <td>Managed LLM (<code>BEDROCK_MODEL_ID</code>, e.g. Claude 3 Haiku / Sonnet)</td>
         <td>Real call; unit/integration tests stub <code>get_structured_model</code></td>
-        <td>Real call via <code>langchain-aws</code> · region must match Textract</td>
+        <td>Real call via <code>langchain-aws</code></td>
+      </tr>
+      <tr>
+        <td><span class="badge external">LlamaCloud Parse + Extract</span></td>
+        <td>Managed document parsing &amp; schema extraction</td>
+        <td>Real call when <code>LLAMA_CLOUD_API_KEY</code> set (default parser)</td>
+        <td>Real call; tier/timeouts via <code>LLAMA_*</code> env vars</td>
       </tr>
       <tr>
         <td><span class="badge external">AWS Textract</span></td>
-        <td>Managed OCR / IDP</td>
-        <td>Real call <em>or</em> <code>botocore.stub.Stubber</code> with canned JSON</td>
-        <td>Real call · region parity with Bedrock</td>
+        <td>Managed OCR / IDP (legacy path)</td>
+        <td>Only when <code>DOCUMENT_PARSER=textract</code>; tests use <code>Stubber</code></td>
+        <td>Opt-in · region parity with Bedrock</td>
       </tr>
       <tr>
         <td><span class="badge external">LangSmith</span></td>
@@ -764,9 +793,9 @@
         <td>One project per agent with metadata tagging</td>
       </tr>
       <tr>
-        <td><span class="badge backend">Document worker</span></td>
-        <td>In-process FastAPI <code>BackgroundTasks</code></td>
-        <td>Same process</td>
+        <td><span class="badge backend">Document worker + SSE</span></td>
+        <td>In-process FastAPI <code>BackgroundTasks</code>; <code>document_event_hub</code> pub/sub</td>
+        <td>Same process; <code>GET /documents/{id}/events</code> streams stages to portal</td>
         <td>Hot-swappable for RQ/Celery without API surface change</td>
       </tr>
     </tbody>
@@ -777,7 +806,11 @@
 JWT_SECRET=...
 AWS_REGION=us-east-1
 BEDROCK_MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0   # or claude-3-5-sonnet-…
-TEXTRACT_REGION=us-east-1
+DOCUMENT_PARSER=llamaindex          # default; or "textract" for AWS Textract path
+LLAMA_CLOUD_API_KEY=...             # required when DOCUMENT_PARSER=llamaindex
+LLAMA_PARSE_TIER=fast             # fast | cost_effective | agentic
+LLAMA_EXTRACT_TIER=fast
+TEXTRACT_REGION=us-east-1           # only when DOCUMENT_PARSER=textract
 STORAGE_BACKEND=s3                # or "local"
 S3_BUCKET=loan-copilot-docs       # used when STORAGE_BACKEND=s3
 LOCAL_STORAGE_DIR=./var/uploads   # used when STORAGE_BACKEND=local
@@ -785,9 +818,10 @@ LANGSMITH_API_KEY=...             # optional in dev
 LANGSMITH_PROJECT=loan-copilot</pre>
 
   <div class="callout">
-    <strong>Portability invariant.</strong> Routes never touch <code>boto3</code> directly;
-    storage and OCR are accessed through <code>services/storage/base.py</code> and
-    <code>services/ocr/base.py</code>. JSON columns use SQLAlchemy's portable <code>JSON</code>
+    <strong>Portability invariant.</strong> Routes never touch <code>boto3</code> or LlamaCloud APIs
+    directly; storage is accessed through <code>services/storage/base.py</code>, and document parsing
+    through <code>document_understanding_agent</code> (LlamaCloud or Textract per
+    <code>DOCUMENT_PARSER</code>). JSON columns use SQLAlchemy's portable <code>JSON</code>
     type so the same migrations apply to SQLite and Postgres.
   </div>
 </section>
@@ -885,7 +919,7 @@ LANGSMITH_PROJECT=loan-copilot</pre>
         <text x="386" y="316" class="text lbl">id, deal_id FK</text>
         <text x="386" y="334" class="text lbl">storage_uri, mime_type</text>
         <text x="386" y="352" class="text lbl">predicted_type (enum)</text>
-        <text x="386" y="368" class="text lbl-sm">pay_stub · w2 · bank_statement · 1003 · unknown</text>
+        <text x="386" y="368" class="text lbl-sm">pay_stub · w2 · bank_statement · unknown</text>
         <text x="386" y="384" class="text lbl">extraction_status</text>
         <text x="386" y="400" class="text lbl-sm">pending · running · succeeded · failed</text>
       </g>
@@ -896,7 +930,7 @@ LANGSMITH_PROJECT=loan-copilot</pre>
         <rect x="720" y="270" width="240" height="26" fill="#ca8a04"/>
         <text x="840" y="288" text-anchor="middle" class="text title" fill="#ffffff">DocumentExtraction</text>
         <text x="736" y="316" class="text lbl">document_id FK (1:1)</text>
-        <text x="736" y="334" class="text lbl">raw_ocr (JSON)</text>
+        <text x="736" y="334" class="text lbl">raw_ocr (JSON: text, key_values, …)</text>
         <text x="736" y="352" class="text lbl">normalized (JSON)</text>
         <text x="736" y="370" class="text lbl">confidence (JSON)</text>
         <text x="736" y="388" class="text lbl">human_corrections (JSON)</text>
@@ -983,7 +1017,7 @@ LANGSMITH_PROJECT=loan-copilot</pre>
   <ol>
     <li><strong>Borrower → Deal.</strong> One borrower in Phase‑1 owns one deal; status starts as <code>intake_in_progress</code>.</li>
     <li><strong>ChatTurn → LoanApplication.</strong> Each borrower turn invokes the Intake Agent: L0 <code>intake_slots</code> extracts a patch, L1 <code>LoanApplicationPatch</code> (structured Bedrock) runs only when L0 is not confident, then <code>try_apply_application_patch</code> deep-merges and validates against <code>LoanApplicationData</code> before commit. L2 replies use templates when progress was made; otherwise <code>IntakeTurnResult</code>. When <code>missing_fields</code> is empty, the orchestrator transitions <code>Deal.status</code> to <code>docs_pending</code>.</li>
-    <li><strong>Document → DocumentExtraction → DealContext.</strong> Each upload creates a <code>Document</code>; the background pipeline produces a <code>DocumentExtraction</code> whose <em>normalized</em> values are merged additively into <code>DealContext</code>. Human <code>corrections</code> always win over machine values.</li>
+    <li><strong>Document → DocumentExtraction → DealContext.</strong> Each upload creates a <code>Document</code>; the background pipeline publishes SSE stages via <code>document_event_hub</code>, runs LlamaParse → classify → LlamaExtract (or Textract when configured), persists <code>raw_ocr</code> including parsed text, and merges <em>normalized</em> values additively into <code>DealContext</code>. Unsupported types fail with a clear error. Human <code>corrections</code> always win over machine values.</li>
     <li><strong>DealContext + LoanApplication → Eligibility.</strong> The Eligibility Agent reads both, computes DTI/LTV deterministically via <code>rules.py</code>, then asks the LLM to explain and refine the conditions list — never to change the status, DTI, or LTV.</li>
     <li><strong>Eligibility → Messages.</strong> The Explanation &amp; Messaging Agent writes <code>internal_draft</code> and <code>borrower_draft</code>. Both stay invisible to the borrower until <code>borrower_approved=True</code>.</li>
     <li><strong>ApprovalEvent.</strong> Every gate crossing — extraction edits, eligibility approval, per-channel message approval — appends an immutable audit row.</li>
@@ -1005,10 +1039,10 @@ LANGSMITH_PROJECT=loan-copilot</pre>
       <title id="agent-title">Agent orchestration — LangGraph nodes, tools, and external calls</title>
       <desc id="agent-desc">
         The Orchestrator routes between four agent nodes. Borrower Chat &amp; Intake writes
-        LoanApplication; Document Understanding calls Textract and writes DealContext;
-        Eligibility computes DTI/LTV and a conditions list; Explanation &amp; Messaging
-        drafts internal and borrower messages. All agents are traced in LangSmith and call
-        Bedrock for LLM completions. A human approval gate sits before the borrower.
+        LoanApplication; Document Understanding calls LlamaCloud Parse/Extract (or Textract)
+        and writes DealContext; Eligibility computes DTI/LTV and a conditions list;
+        Explanation &amp; Messaging drafts internal and borrower messages. All agents are traced
+        in LangSmith and call Bedrock for LLM completions. A human approval gate sits before the borrower.
       </desc>
 
       <defs>
@@ -1067,11 +1101,11 @@ LANGSMITH_PROJECT=loan-copilot</pre>
         <rect x="260" y="280" width="380" height="26" fill="#16a34a"/>
         <text x="450" y="298" text-anchor="middle" class="text title" fill="#ffffff">Document Understanding Agent</text>
         <text x="276" y="326" class="text lbl"><tspan font-weight="700">In:</tspan> document bytes · filename · doc-type hint</text>
-        <text x="276" y="342" class="text lbl"><tspan font-weight="700">Tools:</tspan> ocr_runner (Textract) · extraction_mapper · classifier</text>
-        <text x="276" y="358" class="text lbl"><tspan font-weight="700">Classify:</tspan> filename/OCR heuristics; LLM DocumentClassification if confidence &lt; 0.75</text>
-        <text x="276" y="374" class="text lbl"><tspan font-weight="700">Out:</tspan> predicted_type · normalized JSON · confidence map</text>
-        <text x="276" y="392" class="text lbl-sm">Mapping is deterministic; LLM never invents field values beyond classification.</text>
-        <text x="276" y="402" class="text lbl-sm">Worker merges into DealContext additively; existing human corrections are preserved.</text>
+        <text x="276" y="342" class="text lbl"><tspan font-weight="700">Parse:</tspan> LlamaParse (default) or Textract when DOCUMENT_PARSER=textract</text>
+        <text x="276" y="358" class="text lbl"><tspan font-weight="700">Extract:</tspan> LlamaExtract schemas · income_mapper / document_mapper</text>
+        <text x="276" y="374" class="text lbl"><tspan font-weight="700">Classify:</tspan> filename + parse text; DocumentClassification if confidence &lt; 0.75</text>
+        <text x="276" y="390" class="text lbl"><tspan font-weight="700">Scope:</tspan> pay_stub · w2 · bank_statement only (1003 PDF — coming soon)</text>
+        <text x="276" y="408" class="text lbl-sm">Worker publishes SSE stages; merges into DealContext; human corrections preserved.</text>
       </g>
 
       <!-- Agent 3: Eligibility & Conditions -->
@@ -1118,12 +1152,16 @@ LANGSMITH_PROJECT=loan-copilot</pre>
         <text x="790" y="150" text-anchor="middle" class="text lbl-sm">get_structured_model(schema)</text>
 
         <rect x="900" y="110" width="180" height="50" rx="8" fill="#fce7f3" stroke="#db2777" stroke-width="1.4"/>
-        <text x="990" y="133" text-anchor="middle" class="text title" font-size="12.5" fill="#831843">AWS Textract</text>
-        <text x="990" y="150" text-anchor="middle" class="text lbl-sm">analyze_document / analyze_expense</text>
+        <text x="990" y="133" text-anchor="middle" class="text title" font-size="12.5" fill="#831843">LlamaCloud</text>
+        <text x="990" y="150" text-anchor="middle" class="text lbl-sm">Parse + Extract (default)</text>
 
-        <rect x="700" y="180" width="380" height="50" rx="8" fill="#fce7f3" stroke="#db2777" stroke-width="1.4"/>
-        <text x="890" y="203" text-anchor="middle" class="text title" font-size="12.5" fill="#831843">LangSmith</text>
-        <text x="890" y="220" text-anchor="middle" class="text lbl-sm">tags: intake_extract · intake_reply · eligibility · messaging · document_understanding</text>
+        <rect x="700" y="180" width="180" height="50" rx="8" fill="#fce7f3" stroke="#db2777" stroke-width="1.4" stroke-dasharray="4 3"/>
+        <text x="790" y="203" text-anchor="middle" class="text title" font-size="12.5" fill="#831843">AWS Textract</text>
+        <text x="790" y="220" text-anchor="middle" class="text lbl-sm">opt-in legacy path</text>
+
+        <rect x="900" y="180" width="180" height="50" rx="8" fill="#fce7f3" stroke="#db2777" stroke-width="1.4"/>
+        <text x="990" y="203" text-anchor="middle" class="text title" font-size="12.5" fill="#831843">LangSmith</text>
+        <text x="990" y="220" text-anchor="middle" class="text lbl-sm">document_understanding · intake · eligibility</text>
       </g>
 
       <!-- Persistence row at bottom -->
@@ -1164,9 +1202,9 @@ LANGSMITH_PROJECT=loan-copilot</pre>
       <path d="M 1080,510 C 1130,340 1110,200 990,160" class="arrow-line" marker-end="url(#agArrow)"/>
       <text x="1100" y="370" class="text edge-lbl">LLM</text>
 
-      <!-- Document Understanding -> Textract -->
+      <!-- Document Understanding -> LlamaCloud -->
       <path d="M 640,360 C 800,360 900,250 990,160" class="arrow-line" marker-end="url(#agArrow)"/>
-      <text x="800" y="320" class="text edge-lbl">OCR</text>
+      <text x="800" y="320" class="text edge-lbl">Parse + Extract</text>
 
       <!-- All agents -> LangSmith (dashed) -->
       <path d="M 640,200 C 680,200 690,205 700,205" class="arrow-line dashed" marker-end="url(#agArrow)"/>
@@ -1272,7 +1310,7 @@ LANGSMITH_PROJECT=loan-copilot</pre>
   <ul>
     <li><strong>Eligibility:</strong> <code>rules.py</code> computes status, DTI, LTV, and condition templates; <code>ConditionRefinement</code> may only update <code>title</code> and <code>rationale</code> per condition <code>id</code>.</li>
     <li><strong>Messaging:</strong> <code>MessageDrafts</code> with deterministic template fallback when Bedrock is unavailable.</li>
-    <li><strong>Document understanding:</strong> filename/OCR heuristics first; <code>DocumentClassification</code> when confidence &lt; 0.75; <code>extraction_mapper</code> remains pure functions over OCR output.</li>
+    <li><strong>Document understanding:</strong> LlamaParse → classify (filename + parse text; <code>DocumentClassification</code> when confidence &lt; 0.75) → LlamaExtract with type-specific Pydantic schemas; mappers in <code>income_mapper</code> / <code>document_mapper</code>. Textract + <code>extraction_mapper</code> when <code>DOCUMENT_PARSER=textract</code>.</li>
   </ul>
 
   <h3>Per-agent contracts</h3>
@@ -1291,9 +1329,9 @@ LANGSMITH_PROJECT=loan-copilot</pre>
       <tr>
         <td><strong>Document Understanding</strong></td>
         <td>Document bytes/URI; filename; optional type hint.</td>
-        <td><code>ocr_runner</code>, <code>extraction_mapper</code>, heuristic + <code>DocumentClassification</code> classifier.</td>
-        <td><code>predicted_type</code>, normalized fields, confidence map.</td>
-        <td>LLM classification only when heuristic confidence &lt; 0.75; mapping deterministic.</td>
+        <td>LlamaParse + LlamaExtract (default) or Textract + <code>extraction_mapper</code>; heuristic + <code>DocumentClassification</code> classifier.</td>
+        <td><code>predicted_type</code>, normalized fields, confidence map; SSE stage events.</td>
+        <td>Supported types: pay_stub, w2, bank_statement; LLM classification when heuristic confidence &lt; 0.75.</td>
       </tr>
       <tr>
         <td><strong>Eligibility &amp; Conditions</strong></td>
@@ -1437,25 +1475,33 @@ LANGSMITH_PROJECT=loan-copilot</pre>
       <path d="M 300,494 L 496,494" class="arrow-line" marker-end="url(#seqArrow)"/>
       <text x="310" y="488" class="text edge-lbl">13. POST /documents (multipart) → storage_uri + Document(pending)</text>
 
-      <!-- Backend -> Agent (BackgroundTask) -->
-      <path d="M 500,518 L 696,518" class="arrow-line dashed" marker-end="url(#seqArrow)"/>
-      <text x="510" y="512" class="text edge-lbl">14. BackgroundTasks.run_document_pipeline(document_id)</text>
+      <!-- Portal -> Backend SSE subscribe -->
+      <path d="M 300,518 L 496,518" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="310" y="512" class="text edge-lbl">14. GET /documents/{id}/events (SSE) — live stage updates</text>
 
-      <!-- Agent -> External Textract -->
-      <path d="M 700,542 L 896,542" class="arrow-line" marker-end="url(#seqArrow)"/>
-      <text x="710" y="536" class="text edge-lbl">15. Textract analyze_document / analyze_expense</text>
+      <!-- Backend -> Agent (BackgroundTask) -->
+      <path d="M 500,542 L 696,542" class="arrow-line dashed" marker-end="url(#seqArrow)"/>
+      <text x="510" y="536" class="text edge-lbl">15. BackgroundTasks.run_document_pipeline(document_id)</text>
+
+      <!-- Agent -> External LlamaCloud -->
+      <path d="M 700,566 L 896,566" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="710" y="560" class="text edge-lbl">16. LlamaParse upload → poll → LlamaExtract (reuse job id)</text>
 
       <!-- External -> Agent -->
-      <path d="M 896,566 L 704,566" class="arrow-line" marker-end="url(#seqArrow)"/>
-      <text x="710" y="560" class="text edge-lbl">16. raw OCR (text, key/values, tables)</text>
+      <path d="M 896,590 L 704,590" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="710" y="584" class="text edge-lbl">17. markdown text + structured extraction JSON</text>
 
       <!-- Agent self: classify + map -->
-      <path d="M 700,590 C 760,590 760,614 700,614" class="arrow-line" marker-end="url(#seqArrow)"/>
-      <text x="770" y="602" class="text edge-lbl">17. heuristics or DocumentClassification · extraction_mapper</text>
+      <path d="M 700,614 C 760,614 760,638 700,638" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="770" y="626" class="text edge-lbl">18. classify · income_mapper / document_mapper → normalized</text>
+
+      <!-- Backend -> Portal SSE event -->
+      <path d="M 496,662 L 304,662" class="arrow-line dashed" marker-end="url(#seqArrow)"/>
+      <text x="310" y="656" class="text edge-lbl">19. SSE: parsing → extracting → succeeded (portal updates UI)</text>
 
       <!-- Agent -> Backend save -->
-      <path d="M 696,638 L 504,638" class="arrow-line" marker-end="url(#seqArrow)"/>
-      <text x="510" y="632" class="text edge-lbl">18. persist DocumentExtraction; merge into DealContext</text>
+      <path d="M 696,686 L 504,686" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="510" y="680" class="text edge-lbl">20. persist DocumentExtraction (raw_ocr.text); merge DealContext</text>
 
       <!-- Stage 3: Review -->
       <g>
@@ -1464,12 +1510,12 @@ LANGSMITH_PROJECT=loan-copilot</pre>
       </g>
 
       <!-- LO Console -> Backend -->
-      <path d="M 1090,700 L 504,700" class="arrow-line" marker-end="url(#seqArrow)"/>
-      <text x="510" y="694" class="text edge-lbl">19. GET /documents/{id}/extraction + GET /documents/{id}/file</text>
+      <path d="M 1090,724 L 504,724" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="510" y="718" class="text edge-lbl">21. GET /documents/{id}/extraction + GET /documents/{id}/file</text>
 
       <!-- LO Console -> Backend PUT -->
-      <path d="M 1090,724 L 504,724" class="arrow-line" marker-end="url(#seqArrow)"/>
-      <text x="510" y="718" class="text edge-lbl">20. PUT /documents/{id}/extraction (corrections override machine values)</text>
+      <path d="M 1090,748 L 504,748" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="510" y="742" class="text edge-lbl">22. PUT /documents/{id}/extraction (corrections override machine values)</text>
 
       <!-- Stage 4: Eligibility -->
       <g>
@@ -1478,16 +1524,16 @@ LANGSMITH_PROJECT=loan-copilot</pre>
       </g>
 
       <!-- LO -> Backend run -->
-      <path d="M 1090,786 L 504,786" class="arrow-line" marker-end="url(#seqArrow)"/>
-      <text x="510" y="780" class="text edge-lbl">21. POST /deals/{id}/eligibility/run</text>
+      <path d="M 1090,810 L 504,810" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="510" y="804" class="text edge-lbl">23. POST /deals/{id}/eligibility/run</text>
 
       <!-- Backend -> Agent -->
-      <path d="M 500,810 L 696,810" class="arrow-line" marker-end="url(#seqArrow)"/>
-      <text x="510" y="804" class="text edge-lbl">22. rules.py → ConditionRefinement + MessageDrafts (structured)</text>
+      <path d="M 500,834 L 696,834" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="510" y="828" class="text edge-lbl">24. rules.py → ConditionRefinement + MessageDrafts (structured)</text>
 
       <!-- Agent -> Backend -->
-      <path d="M 696,834 L 504,834" class="arrow-line" marker-end="url(#seqArrow)"/>
-      <text x="510" y="828" class="text edge-lbl">23. EligibilityResult, ConditionsList, drafts → Deal.status=ready_for_review</text>
+      <path d="M 696,858 L 504,858" class="arrow-line" marker-end="url(#seqArrow)"/>
+      <text x="510" y="852" class="text edge-lbl">25. EligibilityResult, ConditionsList, drafts → Deal.status=ready_for_review</text>
 
       <!-- Stage 5: Approval & echo -->
       <g>
@@ -1497,20 +1543,20 @@ LANGSMITH_PROJECT=loan-copilot</pre>
 
       <!-- LO -> Backend approve -->
       <path d="M 1090,896 L 504,896" class="arrow-line" marker-end="url(#seqArrow)"/>
-      <text x="510" y="890" class="text edge-lbl">24. POST /deals/{id}/eligibility/approve + POST /deals/{id}/messages/approve</text>
+      <text x="510" y="890" class="text edge-lbl">26. POST /deals/{id}/eligibility/approve + POST /deals/{id}/messages/approve</text>
 
       <!-- Backend -> Portal (next borrower poll/turn) -->
       <path d="M 496,922 L 304,922" class="arrow-line" marker-end="url(#seqArrow)"/>
-      <text x="310" y="916" class="text edge-lbl">25. GET /borrower/application → approved_borrower_message in chat</text>
+      <text x="310" y="916" class="text edge-lbl">27. GET /borrower/application → approved_borrower_message in chat</text>
 
     </svg>
-    <figcaption>Figure 4 — End-to-end sequence diagram for the Phase-1 happy path. Steps 3–11 repeat per chat turn (Bedrock dashed arrows are conditional). Stage 2 runs once per document; stages 4 and 5 are LO-triggered.</figcaption>
+    <figcaption>Figure 4 — End-to-end sequence diagram for the Phase-1 happy path. Steps 3–11 repeat per chat turn (Bedrock dashed arrows are conditional). Stage 2 uses SSE for live upload status and LlamaCloud Parse/Extract by default; stages 4 and 5 are LO-triggered.</figcaption>
   </figure>
 
   <h3>Flow narrative</h3>
   <ol>
     <li><strong>Borrower applies via chat.</strong> The borrower receives a signed session token scoped to their deal, then converses with the Intake Agent. Each turn runs L0 regex extraction, optionally L1 <code>LoanApplicationPatch</code> structured output, then <code>try_apply_application_patch</code> to validate and persist <code>LoanApplicationData</code>. Replies use templates when possible. When <code>missing_fields</code> is empty, the orchestrator transitions <code>Deal.status</code> to <code>docs_pending</code>.</li>
-    <li><strong>Documents are classified and extracted.</strong> Each upload writes raw bytes to object storage and enqueues <code>run_document_pipeline</code>. Classification uses filename/OCR heuristics first, then <code>DocumentClassification</code> structured output when confidence is low; Textract OCR and <code>extraction_mapper</code> produce normalized JSON merged into <code>DealContext</code>.</li>
+    <li><strong>Documents are classified and extracted.</strong> Each upload writes raw bytes to object storage, returns immediately, and the portal opens an SSE stream on <code>GET /documents/{id}/events</code>. The background pipeline runs LlamaParse → classification → LlamaExtract (pay stub, W-2, bank statement only), publishes stage events, persists <code>raw_ocr</code> including parsed text, and merges normalized JSON into <code>DealContext</code>. Form 1003 PDF upload and cross-check against chat intake is <strong>coming soon</strong>; today the simplified application is captured only via chat.</li>
     <li><strong>LO / processor reviews extractions.</strong> The console renders normalized fields beside the document viewer; <code>PUT /documents/{id}/extraction</code> stores corrections in <code>human_corrections</code> and re-merges <code>DealContext</code>. Corrections always win.</li>
     <li><strong>Eligibility &amp; conditions are computed.</strong> <code>POST /deals/{id}/eligibility/run</code> runs <code>rules.py</code> for DTI/LTV/status and condition templates, then optional <code>ConditionRefinement</code> structured output (titles/rationales only). The Messaging Agent produces <code>MessageDrafts</code> via structured output with template fallback.</li>
     <li><strong>Messages are generated and approved.</strong> The LO edits and approves the eligibility result, the conditions list, and per-channel (internal / borrower) messages. Only after <code>borrower_approved=True</code> does the borrower's next <code>GET /borrower/application</code> include the approved message — surfaced inline as a system turn in <code>ChatWindow</code>.</li>
@@ -1540,9 +1586,9 @@ LANGSMITH_PROJECT=loan-copilot</pre>
 
   <h3>Performance</h3>
   <ul>
-    <li>Target: single document classify + OCR + map within 5–10 seconds in the MVP environment.</li>
-    <li>Document pipeline runs asynchronously via FastAPI <code>BackgroundTasks</code>; the API surface remains compatible with a future swap to RQ or Celery for durable retries.</li>
-    <li>Centralized exponential-backoff retries inside the Bedrock and Textract service wrappers (Phase 6).</li>
+    <li>Target: single document classify + parse + extract within 5–30 seconds in the MVP environment (LlamaCloud tier-dependent).</li>
+    <li>Document pipeline runs asynchronously via FastAPI <code>BackgroundTasks</code>; the borrower portal receives progress via SSE instead of polling. The API surface remains compatible with a future swap to RQ or Celery for durable retries.</li>
+    <li>Centralized exponential-backoff retries inside the Bedrock and LlamaCloud/Textract service wrappers.</li>
     <li>In-process token bucket rate-limits on <code>POST /borrower/chat/messages</code> and <code>POST /documents</code>.</li>
     <li><strong>Bedrock token efficiency:</strong> tiered intake (L0/L1/L2) avoids an LLM call on most chat turns; document classification uses the LLM only when heuristic confidence &lt; 0.75.</li>
   </ul>
@@ -1559,7 +1605,7 @@ LANGSMITH_PROJECT=loan-copilot</pre>
   <div class="grid-3">
     <div class="card">
       <h4>More document types</h4>
-      <p>Add a new <code>predicted_type</code> enum value, a new <code>extraction_mapper.map_*</code> function, and a few golden tests. The Document Understanding Agent picks it up via its structured-output classifier.</p>
+      <p>Add a LlamaExtract schema, mapper, and classifier branch in <code>document_understanding_agent</code>. <strong>Form 1003 PDF processing</strong> — upload, extraction, and cross-check against chat-captured application — is planned and <em>coming soon</em>.</p>
     </div>
     <div class="card">
       <h4>RAG over policy docs</h4>
@@ -1585,17 +1631,18 @@ LANGSMITH_PROJECT=loan-copilot</pre>
 
   <h3>Known risks (acknowledged, mitigated, or deferred)</h3>
   <ul>
-    <li><strong>OCR accuracy variability</strong> on synthetic documents. Mitigated by mandatory LO/processor review (Phase 5 <code>ExtractionReview</code>) where human corrections always override machine values.</li>
+    <li><strong>OCR / extraction accuracy variability</strong> on synthetic documents. Mitigated by mandatory LO/processor review (<code>ExtractionReview</code>) where human corrections always override machine values. LlamaCloud tiers trade speed vs. accuracy.</li>
     <li><strong>Regulatory positioning</strong> of "pre-qualification" vs "pre-approval" is explicitly out of scope; borrower-facing surfaces carry a "Draft — not yet approved by LO" banner.</li>
     <li><strong>Guideline depth</strong> beyond DTI/LTV thresholds is deferred to later phases that will likely require RAG over real policy documents and updated data models / prompts.</li>
-    <li><strong>AWS regional parity</strong> between Bedrock and Textract must be confirmed before deploy; <code>services/ocr/base.py</code> abstracts the OCR provider so we can swap if entitlement is delayed.</li>
+    <li><strong>AWS regional parity</strong> between Bedrock and Textract applies only when <code>DOCUMENT_PARSER=textract</code>; LlamaCloud is API-key based. <code>DOCUMENT_PARSER</code> selects the document backend without API surface changes.</li>
   </ul>
 </section>
 
 <footer class="doc-footer">
   Generated from <code>docs/requirements.md</code>, <code>docs/design.md</code>, and
-  <code>docs/implementation-plan.md</code>. Updated 2026‑05‑29 for production LLM schema pattern
-  (<code>agent_io.py</code>, <code>get_structured_model</code>, tiered intake L0/L1/L2).
+  <code>docs/implementation-plan.md</code>. Updated 2026‑06‑01 for LlamaCloud Parse/Extract
+  (default <code>DOCUMENT_PARSER=llamaindex</code>), SSE document events, three supported upload
+  types, and tiered intake L0/L1/L2. Form 1003 PDF processing — coming soon.
   Self-contained — no external CSS, JS, fonts, images, or diagrams. Open in any modern browser or print to PDF.
 </footer>
 

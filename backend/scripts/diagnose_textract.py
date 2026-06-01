@@ -17,7 +17,7 @@ from app.core.config import settings
 
 def main() -> int:
     region = settings.TEXTRACT_REGION
-    print(f"OCR_BACKEND={settings.OCR_BACKEND!r}")
+    print(f"DOCUMENT_PARSER={settings.DOCUMENT_PARSER!r} (effective={settings.effective_document_parser()!r})")
     print(f"TEXTRACT_REGION={region!r}")
     print()
 
@@ -51,7 +51,7 @@ def main() -> int:
             print("  3. Ensure account has verified payment method + phone (Account settings)")
             print("  4. Re-run: uv run python -m scripts.diagnose_textract")
             print()
-            print("Until then, OCR_BACKEND=auto will fall back to local parsing for .txt uploads.")
+            print("Set DOCUMENT_PARSER=textract to use Textract, or use DOCUMENT_PARSER=llamaindex with LLAMA_CLOUD_API_KEY.")
         elif code in ("AccessDeniedException", "UnauthorizedException"):
             print("Attach AmazonTextractFullAccess (or textract:AnalyzeDocument) to your IAM user/role.")
         return 1
