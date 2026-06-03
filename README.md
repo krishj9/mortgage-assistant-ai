@@ -2,7 +2,7 @@
 
 A **mortgage loan officer and borrower copilot** that combines conversational intake, document understanding, and agentic reasoning—with **human-in-the-loop** approval before anything sensitive reaches the borrower.
 
-Phase-1 scope: synthetic borrowers and documents, a small document set (pay stub, W-2, bank statement), and draft pre-qualification—not production credit decisions or LOS integration.
+Phase-1 scope: synthetic borrowers and documents, a small document set (pay stub, W-2, bank statement), and draft pre-qualification, not production credit decisions or LOS integration.
 
 ---
 
@@ -228,7 +228,27 @@ Create `backend/.env` (never commit secrets). Typical variables:
 | `LLAMA_JOB_TIMEOUT_SEC` | Max wait for Parse/Extract jobs (default `120`) |
 | `STORAGE_BACKEND` | `local` or `s3` |
 | `LOCAL_STORAGE_DIR` | Path for uploaded files when `local` |
-| `LANGSMITH_API_KEY` | Optional tracing |
+| `OBSERVABILITY_PROVIDER` | `none` (default), `langsmith`, or `aws` (OpenTelemetry/ADOT) |
+| `LANGSMITH_API_KEY` | Required when `OBSERVABILITY_PROVIDER=langsmith` |
+| `LANGSMITH_PROJECT` | LangSmith project name (traces + eval datasets) |
+| `OTEL_SERVICE_NAME` | Service name for AWS OTEL traces (default `loan-officer-copilot`) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | ADOT collector OTLP endpoint when `OBSERVABILITY_PROVIDER=aws` |
+
+**Observability**
+
+- **`OBSERVABILITY_PROVIDER=none`:** JSON structlog only (default local dev).
+- **`OBSERVABILITY_PROVIDER=langsmith`:** LangChain traces + optional eval dataset sync (`scripts/sync_eval_datasets.py`).
+- **`OBSERVABILITY_PROVIDER=aws`:** OpenTelemetry via ADOT → X-Ray / CloudWatch. Install extras: `uv sync --extra observability-aws`.
+- **`GET /readyz`:** Readiness probe (database, storage, parser config).
+
+**Evals**
+
+```bash
+cd backend
+uv run pytest tests/eval/test_eval_schema.py tests/eval/test_eval_deterministic.py   # CI deterministic
+uv run pytest tests/eval -m eval_smoke          # smoke LLM evals (needs AWS creds)
+uv run python -m evals.runners.run_all --suite full --output eval-results.json  # nightly
+```
 
 **Document parsing notes**
 
@@ -244,7 +264,7 @@ Create `backend/.env` (never commit secrets). Typical variables:
 
 | Area | Prefix | Auth |
 |------|--------|------|
-| Health | `GET /healthz` | None |
+| Health | `GET /healthz`, `GET /readyz` | None |
 | Staff auth | `POST /auth/staff/login` | — |
 | Borrower session | `POST /auth/borrower/session` | — |
 | Deals | `/deals` | Staff JWT |

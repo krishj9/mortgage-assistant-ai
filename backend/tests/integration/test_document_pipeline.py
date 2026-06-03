@@ -89,5 +89,7 @@ async def test_document_upload_and_pipeline(async_client: AsyncClient, monkeypat
         assert extraction.normalized.get("income")
         ctx = db.execute(select(DealContext).where(DealContext.deal_id == deal_id)).scalar_one()
         assert ctx.extracted_income.get("records")
+        deal = db.execute(select(Deal).where(Deal.id == deal_id)).scalar_one()
+        assert deal.status == DealStatus.ready_for_review
     finally:
         db.close()

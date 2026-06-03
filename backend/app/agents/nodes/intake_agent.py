@@ -22,7 +22,8 @@ from app.agents.tools.application_writer import (
 )
 from app.models.chat import ChatRole, ChatTurn
 from app.schemas.agent_io import IntakeGuidance, IntakeTurn, patch_to_dict
-from app.services.bedrock.client import get_structured_model
+from app.services.bedrock.client import get_structured_model, invoke_structured
+from app.observability import agent_span, observability_context
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +100,11 @@ def _run_llm_turn(
         *history_messages,
         HumanMessage(content=context),
     ]
-    result = model.invoke(messages)
+    result = invoke_structured(
+        model,
+        messages,
+        tags=["borrower_chat", "intake_turn"],
+    )
     return result if isinstance(result, IntakeTurn) else None
 
 
@@ -135,7 +140,11 @@ def _run_guidance_turn(
         HumanMessage(content=context),
     ]
     try:
-        result = model.invoke(messages)
+        result = invoke_structured(
+            model,
+            messages,
+            tags=["borrower_chat", "intake_guidance"],
+        )
     except Exception:
         logger.exception("Intake guidance LLM failed for field=%s", current_field)
         return None
@@ -191,51 +200,54 @@ def intake_node_factory(db):
         deal_id = int(state["deal_id"])
         borrower_message = state.get("latest_borrower_message", "")
 
-        snapshot, missing_before = get_application_snapshot(db, deal_id=deal_id)
-        next_label = missing_before[0] if missing_before else None
+        with observability_context(deal_id=deal_id), agent_span(
+            "intake_turn", deal_id=deal_id
+        ):
+            snapshot, missing_before = get_application_snapshot(db, deal_id=deal_id)
+            next_label = missing_before[0] if missing_before else None
 
-        recent = _load_recent_turns(db, deal_id)
-        if recent and recent[-1].role == ChatRole.borrower.value:
-            recent = recent[:-1]
-        history_messages = _history_to_messages(recent)
-        previous_assistant = _last_assistant_message(recent)
+            recent = _load_recent_turns(db, deal_id)
+            if recent and recent[-1].role == ChatRole.borrower.value:
+                recent = recent[:-1]
+            history_messages = _history_to_messages(recent)
+            previous_assistant = _last_assistant_message(recent)
 
-        patch: dict[str, Any] = _extract_patch(borrower_message, next_label)
+            patch: dict[str, Any] = _extract_patch(borrower_message, next_label)
 
-        llm_result: IntakeTurn | None = None
-        try:
-            llm_result = _run_llm_turn(
-                history_messages, snapshot, missing_before, borrower_message
+            llm_result: IntakeTurn | None = None
+            try:
+                llm_result = _run_llm_turn(
+                    history_messages, snapshot, missing_before, borrower_message
+                )
+            except Exception:
+                logger.exception("Intake LLM turn failed for deal_id=%s", deal_id)
+                llm_result = None
+
+            if llm_result and llm_result.patch is not None:
+                patch = {**patch, **patch_to_dict(llm_result.patch)}
+
+            snapshot, missing_after, applied, validation_error = try_apply_application_patch(
+                db, deal_id=deal_id, patch=patch
             )
-        except Exception:
-            logger.exception("Intake LLM turn failed for deal_id=%s", deal_id)
-            llm_result = None
 
-        if llm_result and llm_result.patch is not None:
-            patch = {**patch, **patch_to_dict(llm_result.patch)}
+            assistant_reply = _select_reply(
+                missing_before=missing_before,
+                missing_after=missing_after,
+                borrower_message=borrower_message,
+                llm_result=llm_result,
+                applied=applied,
+                history_messages=history_messages,
+                snapshot=snapshot,
+                validation_error=validation_error,
+                previous_assistant_message=previous_assistant,
+            )
 
-        snapshot, missing_after, applied, validation_error = try_apply_application_patch(
-            db, deal_id=deal_id, patch=patch
-        )
-
-        assistant_reply = _select_reply(
-            missing_before=missing_before,
-            missing_after=missing_after,
-            borrower_message=borrower_message,
-            llm_result=llm_result,
-            applied=applied,
-            history_messages=history_messages,
-            snapshot=snapshot,
-            validation_error=validation_error,
-            previous_assistant_message=previous_assistant,
-        )
-
-        return {
-            **state,
-            "application_patch": patch if applied else {},
-            "application_snapshot": snapshot,
-            "missing_fields": missing_after,
-            "assistant_reply": assistant_reply,
-        }
+            return {
+                **state,
+                "application_patch": patch if applied else {},
+                "application_snapshot": snapshot,
+                "missing_fields": missing_after,
+                "assistant_reply": assistant_reply,
+            }
 
     return _intake_node

@@ -9,6 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 logger = logging.getLogger(__name__)
 
 DocumentParserMode = Literal["llamaindex", "textract"]
+ObservabilityProvider = Literal["langsmith", "aws", "none"]
 
 
 class Settings(BaseSettings):
@@ -52,8 +53,11 @@ class Settings(BaseSettings):
     LLAMA_JOB_TIMEOUT_SEC: int = 120
 
     # Observability
+    OBSERVABILITY_PROVIDER: str = "none"
     LANGSMITH_API_KEY: str = ""
     LANGSMITH_PROJECT: str = "loan-officer-copilot"
+    OTEL_SERVICE_NAME: str = "loan-officer-copilot"
+    OTEL_EXPORTER_OTLP_ENDPOINT: str = ""
 
     # Storage
     STORAGE_BACKEND: str = "local"  # "local" | "s3"
@@ -85,6 +89,12 @@ class Settings(BaseSettings):
         if mode == "textract":
             return "textract"
         return "llamaindex"
+
+    def effective_observability_provider(self) -> ObservabilityProvider:
+        value = self.OBSERVABILITY_PROVIDER.lower().strip()
+        if value in ("langsmith", "aws", "none"):
+            return value  # type: ignore[return-value]
+        return "none"
 
     def require_llama_cloud_key(self) -> None:
         if not self.LLAMA_CLOUD_API_KEY.strip():

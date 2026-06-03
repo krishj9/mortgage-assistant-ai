@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: loanofficer
+          POSTGRES_PASSWORD: loanofficer_password
+          POSTGRES_DB: loanofficer_mvp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U loanofficer -d loanofficer_mvp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv python install 3.11
+      - name: Install dependencies
+        working-directory: backend
+        run: uv sync --extra dev
+      - name: Run tests (excluding nightly eval markers)
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg://loanofficer:loanofficer_password@localhost:5432/loanofficer_mvp
+          OBSERVABILITY_PROVIDER: none
+        run: |
+          uv run pytest tests/unit tests/integration tests/eval/test_eval_schema.py tests/eval/test_eval_deterministic.py \
+            -m "not eval_smoke and not eval_full and not eval_latency" -q
+      - name: Run eval smoke (optional)
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg://loanofficer:loanofficer_password@localhost:5432/loanofficer_mvp
+          OBSERVABILITY_PROVIDER: none
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: uv run pytest tests/eval/test_eval_smoke_llm.py -m eval_smoke -q
+        continue-on-error: true

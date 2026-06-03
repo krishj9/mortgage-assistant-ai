@@ -37,6 +37,9 @@ def create_document(
     db.add(doc)
     db.commit()
     db.refresh(doc)
+    from app.services.deals_service import sync_deal_status_from_documents
+
+    sync_deal_status_from_documents(db, deal_id)
     return doc
 
 

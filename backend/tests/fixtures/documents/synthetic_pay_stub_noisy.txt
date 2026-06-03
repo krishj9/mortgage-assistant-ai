@@ -1,0 +1,6 @@
+PAY STUB — EARNINGS STATEMENT
+Employer: Acme Corp
+Employee: Alice Borrower
+Pay Frequency: Bi-Weekly
+Gross Pay: 8500.00
+Net Pay: 6149.75

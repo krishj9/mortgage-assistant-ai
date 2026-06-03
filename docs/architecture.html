@@ -787,10 +787,10 @@
         <td>Opt-in · region parity with Bedrock</td>
       </tr>
       <tr>
-        <td><span class="badge external">LangSmith</span></td>
-        <td>Hosted tracing</td>
-        <td>No-op when <code>LANGSMITH_API_KEY</code> is absent</td>
-        <td>One project per agent with metadata tagging</td>
+        <td><span class="badge external">Observability</span></td>
+        <td>LangSmith traces or AWS OTEL/ADOT (X-Ray, CloudWatch)</td>
+        <td><code>OBSERVABILITY_PROVIDER=none</code> by default</td>
+        <td><code>langsmith</code> · <code>aws</code> · <code>none</code></td>
       </tr>
       <tr>
         <td><span class="badge backend">Document worker + SSE</span></td>
@@ -814,8 +814,11 @@ TEXTRACT_REGION=us-east-1           # only when DOCUMENT_PARSER=textract
 STORAGE_BACKEND=s3                # or "local"
 S3_BUCKET=loan-copilot-docs       # used when STORAGE_BACKEND=s3
 LOCAL_STORAGE_DIR=./var/uploads   # used when STORAGE_BACKEND=local
-LANGSMITH_API_KEY=...             # optional in dev
-LANGSMITH_PROJECT=loan-copilot</pre>
+OBSERVABILITY_PROVIDER=none       # none | langsmith | aws
+LANGSMITH_API_KEY=...             # when OBSERVABILITY_PROVIDER=langsmith
+LANGSMITH_PROJECT=loan-copilot
+OTEL_SERVICE_NAME=loan-officer-copilot
+OTEL_EXPORTER_OTLP_ENDPOINT=...   # ADOT collector when aws</pre>
 
   <div class="callout">
     <strong>Portability invariant.</strong> Routes never touch <code>boto3</code> or LlamaCloud APIs
@@ -1578,10 +1581,20 @@ LANGSMITH_PROJECT=loan-copilot</pre>
 
   <h3>Observability</h3>
   <ul>
-    <li>LangSmith runs tag Bedrock calls by purpose: <code>intake_extract</code>, <code>intake_reply</code>, <code>document_understanding</code>, <code>eligibility</code>, <code>messaging</code> (plus legacy project names per agent). Run metadata includes <code>deal_id</code>, <code>document_id</code>, <code>user_id</code>.</li>
-    <li>Structured JSON logs via <code>structlog</code>; <code>X-Request-Id</code> correlates HTTP requests with LangSmith <code>run_id</code> values.</li>
-    <li><code>EventLog</code> table (Phase 6) records <code>intake_complete</code>, <code>document_extracted</code>, <code>eligibility_computed</code>, and <code>messages_approved</code> with timestamps.</li>
-    <li>Health probes: <code>/healthz</code> (liveness) and <code>/readyz</code> (database + storage + Bedrock model reachable).</li>
+    <li><strong>Provider switch:</strong> <code>OBSERVABILITY_PROVIDER</code> ∈ <code>{none, langsmith, aws}</code> via <code>app/observability/</code>. Only one backend is active at a time.</li>
+    <li><strong>LangSmith path:</strong> <code>LangChainTracer</code> callbacks on all Bedrock invokes through <code>invoke_structured()</code>; metadata includes <code>deal_id</code>, <code>document_id</code>, <code>request_id</code>. Eval datasets sync via <code>scripts/sync_eval_datasets.py</code>.</li>
+    <li><strong>AWS path:</strong> OpenTelemetry + ADOT (<code>uv sync --extra observability-aws</code>) — FastAPI, httpx, botocore auto-instrumentation; manual spans on agent boundaries; CloudWatch EMF for eval metrics.</li>
+    <li>Structured JSON logs via <code>structlog</code> with contextvars (<code>request_id</code>, <code>deal_id</code>, <code>trace_id</code>).</li>
+    <li><code>EventLog</code> table records <code>intake_complete</code>, <code>document_extracted</code>, <code>eligibility_computed</code>, and <code>messages_approved</code>.</li>
+    <li>Health probes: <code>/healthz</code> (liveness) and <code>/readyz</code> (database + storage + parser config).</li>
+  </ul>
+
+  <h3>Evals</h3>
+  <ul>
+    <li><code>backend/evals/</code> — JSONL datasets, scorers (intake L0, document heuristics, messaging guardrails, schema compliance), and <code>run_all</code> runner.</li>
+    <li><strong>CI:</strong> deterministic eval tests on every PR; optional <code>eval_smoke</code> when AWS credentials are present.</li>
+    <li><strong>Nightly:</strong> full suite via GitHub Actions (<code>.github/workflows/nightly-evals.yml</code>).</li>
+    <li>Deterministic <code>rules.py</code> DTI/LTV remains authoritative; LLM evals cover classification, intake extraction, and messaging guardrails only.</li>
   </ul>
 
   <h3>Performance</h3>
@@ -1598,7 +1611,7 @@ LANGSMITH_PROJECT=loan-copilot</pre>
     <li>Single Docker Compose stack in dev (<code>postgres</code> + <code>localstack</code> + backend + frontend) with the same env-var contract as deployed environments.</li>
     <li>Backend and frontend ship as independent container images (Gunicorn/Uvicorn and Next.js standalone respectively).</li>
     <li>Database portability (SQLite ↔ Postgres) is preserved by sticking to SQLAlchemy-portable types and the built-in <code>JSON</code> column.</li>
-    <li>Terraform IaC and GitHub Actions are explicit future work (Phase 6+).</li>
+    <li>Terraform IaC and GitHub Actions CI/nightly eval workflows are in place for backend tests and eval suites.</li>
   </ul>
 
   <h3>Extensibility hooks</h3>
@@ -1642,7 +1655,8 @@ LANGSMITH_PROJECT=loan-copilot</pre>
   Generated from <code>docs/requirements.md</code>, <code>docs/design.md</code>, and
   <code>docs/implementation-plan.md</code>. Updated 2026‑06‑01 for LlamaCloud Parse/Extract
   (default <code>DOCUMENT_PARSER=llamaindex</code>), SSE document events, three supported upload
-  types, and tiered intake L0/L1/L2. Form 1003 PDF processing — coming soon.
+  types, tiered intake L0/L1/L2, observability provider switch, and eval framework.
+  Form 1003 PDF processing — coming soon.
   Self-contained — no external CSS, JS, fonts, images, or diagrams. Open in any modern browser or print to PDF.
 </footer>
 

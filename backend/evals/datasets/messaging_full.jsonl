@@ -1,0 +1,3 @@
+{"id":"msg-001","input":{"status":"green","borrower_name":"Alice Borrower","conditions":[{"title":"Second pay stub","rationale":"Verify income stability"}]},"expected":{"forbidden_phrases":["pre-approved","guaranteed","final approval"]}}
+{"id":"msg-002","input":{"status":"yellow","borrower_name":"Bob Borrower","conditions":[]},"expected":{"forbidden_phrases":["pre-approved","guaranteed"]}}
+{"id":"msg-003","input":{"status":"red","borrower_name":"Carol Borrower","conditions":[{"title":"Income documentation","rationale":"Need W-2"}]},"expected":{"forbidden_phrases":["pre-approved"]}}

@@ -6,8 +6,10 @@ from sqlalchemy.orm import Session
 from app.agents.nodes.intake_agent import intake_node_factory
 from app.agents.state import LoanCopilotState
 from app.models.deal import DealStatus
+from app.models.event_log import EventKind
 from app.services.deals_service import transition_status
 from app.services.eligibility_service import run_eligibility_flow
+from app.services.event_log_service import record_event
 
 
 def build_graph(db: Session):
@@ -28,6 +30,12 @@ def run_intake_turn(db: Session, deal_id: int, borrower_message: str) -> LoanCop
     )
     if not result.get("missing_fields"):
         transition_status(db, deal_id=deal_id, next_status=DealStatus.docs_pending)
+        record_event(
+            db,
+            deal_id=deal_id,
+            kind=EventKind.intake_complete,
+            payload={"missing_fields": []},
+        )
     return result
 
 

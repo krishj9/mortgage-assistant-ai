@@ -34,6 +34,21 @@ dev = [
   "mypy>=1.10.0",
   "types-requests",
 ]
+observability-aws = [
+  "opentelemetry-sdk>=1.27.0",
+  "opentelemetry-exporter-otlp>=1.27.0",
+  "opentelemetry-instrumentation-fastapi>=0.48b0",
+  "opentelemetry-instrumentation-httpx>=0.48b0",
+  "opentelemetry-instrumentation-botocore>=0.48b0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+markers = [
+  "eval_smoke: small LLM eval subset for CI",
+  "eval_full: full nightly eval suite",
+  "eval_latency: latency budget checks",
+]
 
 [tool.ruff]
 line-length = 100

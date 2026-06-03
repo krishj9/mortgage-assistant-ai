@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from app.api.auth import router as auth_router
 from app.api.borrower_application import router as borrower_application_router
@@ -12,15 +13,18 @@ from app.api.documents import router as documents_router
 from app.api.eligibility import router as eligibility_router
 from app.api.extractions import router as extractions_router
 from app.api.messages import router as messages_router
-from app.agents.tracing import configure_langsmith
-from app.core.logging import configure_logging, request_id_middleware
+from app.core.config import settings
+from app.core.logging import configure_logging, get_logger, request_id_middleware
+from app.db.session import SessionLocal
+from app.observability import configure_observability
+from app.services.storage import get_storage
 
 
 def create_app() -> FastAPI:
     configure_logging()
-    configure_langsmith()
 
     app = FastAPI(title="Loan Officer Copilot MVP")
+    configure_observability(app)
 
     app.add_middleware(
         CORSMiddleware,
@@ -34,12 +38,52 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
-        # MVP: return a generic payload. Logging is handled in middleware.
+        get_logger().exception(
+            "unhandled_exception",
+            path=request.url.path,
+            error=str(exc),
+        )
         return JSONResponse(status_code=500, content={"error": "internal_error"})
 
     @app.get("/healthz")
     def healthz() -> dict:
         return {"status": "ok"}
+
+    @app.get("/readyz")
+    def readyz():
+        checks: dict[str, str] = {}
+        db = SessionLocal()
+        try:
+            db.execute(text("SELECT 1"))
+            checks["database"] = "ok"
+        except Exception as exc:
+            checks["database"] = f"error: {exc}"
+        finally:
+            db.close()
+
+        try:
+            get_storage()
+            checks["storage"] = "ok"
+        except Exception as exc:
+            checks["storage"] = f"error: {exc}"
+
+        if settings.effective_document_parser() == "llamaindex":
+            checks["llama_cloud_key"] = (
+                "ok" if settings.LLAMA_CLOUD_API_KEY.strip() else "missing"
+            )
+
+        checks["bedrock_config"] = "ok" if settings.BEDROCK_MODEL_ID else "missing"
+        checks["observability_provider"] = settings.effective_observability_provider()
+
+        critical_ok = checks["database"] == "ok" and checks["storage"] == "ok"
+        if settings.effective_document_parser() == "llamaindex":
+            critical_ok = critical_ok and checks.get("llama_cloud_key") == "ok"
+
+        body = {
+            "status": "ready" if critical_ok else "degraded",
+            "checks": checks,
+        }
+        return JSONResponse(status_code=200 if critical_ok else 503, content=body)
 
     app.include_router(auth_router)
     app.include_router(deals_router)
@@ -53,4 +97,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-

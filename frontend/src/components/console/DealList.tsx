@@ -28,6 +28,7 @@ export function DealList({
             <option value="">All</option>
             <option value="intake_in_progress">Intake in progress</option>
             <option value="docs_pending">Docs pending</option>
+            <option value="extraction_in_progress">Extraction in progress</option>
             <option value="ready_for_review">Ready for review</option>
             <option value="lo_approved">LO approved</option>
             <option value="closed">Closed</option>

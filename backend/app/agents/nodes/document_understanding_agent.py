@@ -8,7 +8,7 @@ from app.agents.tools.ocr_runner import run_ocr
 from app.core.config import settings
 from app.models.document import DocumentType
 from app.schemas.agent_io import DocumentClassification
-from app.services.bedrock.client import get_structured_model
+from app.services.bedrock.client import get_structured_model, invoke_structured
 from app.services.llamaindex.client import LlamaIndexError
 from app.services.llamaindex.document_mapper import map_document_extraction
 from app.services.llamaindex.extract import extract_structured
@@ -57,8 +57,10 @@ def _llm_classify_document(filename: str, ocr_text: str) -> tuple[str, float] | 
             f"Filename: {filename}\n\n"
             f"OCR text (truncated):\n\"\"\"{ocr_text[:2000]}\"\"\""
         )
-        result = model.invoke(
-            [SystemMessage(content=_DOC_CLASSIFY_PROMPT), HumanMessage(content=human)]
+        result = invoke_structured(
+            model,
+            [SystemMessage(content=_DOC_CLASSIFY_PROMPT), HumanMessage(content=human)],
+            tags=["document_understanding"],
         )
         if isinstance(result, DocumentClassification):
             return result.predicted_type, float(result.confidence)

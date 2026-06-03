@@ -59,5 +59,14 @@ def approve_message_channel(
     if payload.approved:
         row.approved_by_user_id = user_id
         row.approved_at = datetime.now(timezone.utc)
+        from app.models.event_log import EventKind
+        from app.services.event_log_service import record_event
+
+        record_event(
+            db,
+            deal_id=deal_id,
+            kind=EventKind.messages_approved,
+            payload={"channel": payload.channel, "user_id": user_id},
+        )
     db.commit()
     return get_messages_for_staff(db, deal_id)

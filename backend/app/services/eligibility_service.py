@@ -10,7 +10,9 @@ from app.models.deal_context import DealContext
 from app.models.loan_application import LoanApplication
 from app.models.message import Messages
 from app.schemas.eligibility import ConditionsList, EligibilityPatch, EligibilityResult
+from app.models.event_log import EventKind
 from app.services.deals_service import transition_status
+from app.services.event_log_service import record_event
 
 
 def _sync_computed_metrics(ctx: DealContext, eligibility: EligibilityResult) -> None:
@@ -69,6 +71,12 @@ def run_eligibility_flow(db: Session, deal_id: int) -> dict:
     db.commit()
 
     transition_status(db, deal_id=deal_id, next_status=DealStatus.ready_for_review)
+    record_event(
+        db,
+        deal_id=deal_id,
+        kind=EventKind.eligibility_computed,
+        payload={"status": eligibility.status.value, "dti": eligibility.dti, "ltv": eligibility.ltv},
+    )
 
     return {
         "eligibility": eligibility.model_dump(mode="json"),

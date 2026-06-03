@@ -40,6 +40,12 @@ def test_map_w2_from_text():
     assert out["income"][0]["gross_income"] == 96000.0
 
 
+def test_map_bank_statement_from_fixture():
+    ocr = _load("bank_statement_sample.json")
+    out = map_bank_statement(ocr, document_id=3)
+    assert out["assets"][0]["average_balance"] == 12500.5
+
+
 def test_map_bank_statement():
     ocr = OcrResult(text="Ending Balance: 12500.50", key_values={})
     out = map_bank_statement(ocr, document_id=3)

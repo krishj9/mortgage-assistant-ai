@@ -45,7 +45,7 @@ class _FakeModel:
     def __init__(self, result: IntakeTurn):
         self._result = result
 
-    def invoke(self, _messages):
+    def invoke(self, _messages, config=None):
         return self._result
 
 

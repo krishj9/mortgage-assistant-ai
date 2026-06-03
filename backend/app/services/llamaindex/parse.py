@@ -7,7 +7,13 @@ from typing import Any
 from llama_cloud.types.parsing_get_response import ParsingGetResponse
 
 from app.core.config import settings
-from app.services.llamaindex.client import LlamaIndexError, get_client, wait_for_job
+from app.services.llamaindex.client import (
+    LlamaIndexError,
+    get_client,
+    get_job_id,
+    get_job_status,
+    wait_for_job,
+)
 from app.services.ocr.base import OcrResult
 
 _KV_LINE = re.compile(r"^([^:]+?):\s+(.+?)\s*$")
@@ -73,21 +79,22 @@ def parse_document(
         document_id=document_id,
     )
 
-    result = client.parsing.get(completed.id, expand=["text", "markdown"])
+    parse_job_id = get_job_id(completed)
+    result = client.parsing.get(parse_job_id, expand=["text", "markdown"])
     text = _extract_parsed_text(result)
     if not text.strip():
-        raise LlamaIndexError(f"LlamaParse job {completed.id} returned empty text")
+        raise LlamaIndexError(f"LlamaParse job {parse_job_id} returned empty text")
 
     key_values = _derive_key_values(text)
     return ParseResult(
         text=text,
-        parse_job_id=completed.id,
+        parse_job_id=parse_job_id,
         key_values=key_values,
         raw={
             "source": "llamaparse",
-            "parse_job_id": completed.id,
+            "parse_job_id": parse_job_id,
             "tier": tier,
-            "status": completed.status,
+            "status": get_job_status(completed),
         },
     )
 

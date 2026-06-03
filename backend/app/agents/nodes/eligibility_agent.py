@@ -13,12 +13,14 @@ from app.models.document import Document
 from app.models.loan_application import LoanApplication
 from app.schemas.agent_io import ConditionRefinement
 from app.schemas.eligibility import ConditionsList, EligibilityResult
-from app.services.bedrock.client import get_structured_model
+from app.services.bedrock.client import get_structured_model, invoke_structured
 
 
 def _refine_conditions_with_llm(
     eligibility: EligibilityResult,
     conditions: ConditionsList,
+    *,
+    deal_id: int | None = None,
 ) -> ConditionsList:
     """
     Let the LLM polish condition titles/rationales only. Deterministic status, DTI,
@@ -34,11 +36,14 @@ def _refine_conditions_with_llm(
             "ltv": eligibility.ltv,
             "conditions": [c.model_dump() for c in conditions.items],
         }
-        result = model.invoke(
+        result = invoke_structured(
+            model,
             [
                 SystemMessage(content=ELIGIBILITY_SYSTEM_PROMPT),
                 HumanMessage(content=json.dumps(payload)),
-            ]
+            ],
+            tags=["eligibility"],
+            metadata={"deal_id": str(deal_id)} if deal_id else None,
         )
         if not isinstance(result, ConditionRefinement):
             return conditions
@@ -80,5 +85,5 @@ def run_eligibility_agent(db: Session, deal_id: int) -> tuple[EligibilityResult,
         deal_context_snapshot,
         document_count=int(doc_count or 0),
     )
-    conditions = _refine_conditions_with_llm(eligibility, conditions)
+    conditions = _refine_conditions_with_llm(eligibility, conditions, deal_id=deal_id)
     return eligibility, conditions

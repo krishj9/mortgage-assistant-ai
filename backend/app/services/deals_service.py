@@ -7,8 +7,11 @@ from sqlalchemy.orm import Session
 
 from app.models.deal import Deal, DealStatus
 from app.models.deal_context import DealContext
+from app.models.document import ExtractionStatus
 from app.models.loan_application import LoanApplication
 from app.models.message import Messages
+
+_FROZEN_DEAL_STATUSES = frozenset({DealStatus.lo_approved, DealStatus.closed})
 
 
 def create_deal(db: Session, borrower_id: int) -> Deal:
@@ -54,4 +57,33 @@ def transition_status(db: Session, deal_id: int, next_status: DealStatus) -> Dea
     db.commit()
     db.refresh(deal)
     return deal
+
+
+def sync_deal_status_from_documents(db: Session, deal_id: int) -> Deal | None:
+    """Align Deal.status with document extraction progress for the LO console."""
+    from app.services import documents_service
+
+    deal = get_deal(db, deal_id)
+    if deal is None or deal.status in _FROZEN_DEAL_STATUSES:
+        return deal
+
+    docs = documents_service.list_documents(db, deal_id)
+    if not docs:
+        return deal
+
+    if any(
+        doc.extraction_status in (ExtractionStatus.pending.value, ExtractionStatus.running.value)
+        for doc in docs
+    ):
+        next_status = DealStatus.extraction_in_progress
+    elif any(doc.extraction_status == ExtractionStatus.succeeded.value for doc in docs):
+        next_status = DealStatus.ready_for_review
+    else:
+        # All uploads failed — borrower should re-upload.
+        next_status = DealStatus.docs_pending
+
+    if deal.status == next_status:
+        return deal
+
+    return transition_status(db, deal_id=deal_id, next_status=next_status)
 

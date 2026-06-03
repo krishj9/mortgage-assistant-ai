@@ -1,0 +1,3 @@
+{"id":"intake-001","input":{"message":"I earn $8500 biweekly at Acme Corp","missing_fields":["employment.employer"],"history":[]},"expected":{"patch_keys":["employment"],"employer":"Acme Corp"}}
+{"id":"intake-002","input":{"message":"My email is alice@example.com","missing_fields":["contact.contact_email"],"history":[]},"expected":{"patch_keys":["contact"],"email":"alice@example.com"}}
+{"id":"intake-003","input":{"message":"What documents do you need?","missing_fields":["employment.employer"],"history":[]},"expected":{"intent":"meta"}}

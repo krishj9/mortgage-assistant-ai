@@ -1,0 +1,2 @@
+{"id":"doc-001","input":{"filename":"synthetic_pay_stub.txt","text":"Employer: Acme Corp\nEmployee: Alice Borrower\nGross Pay: 8500.00"},"expected":{"predicted_type":"pay_stub","employer":"Acme Corp","gross_income":8500.0}}
+{"id":"doc-002","input":{"filename":"synthetic_w2.txt","text":"Employee Name: Alice Borrower\nBox 1 Wages: 96000.00"},"expected":{"predicted_type":"w2","gross_income":96000.0}}

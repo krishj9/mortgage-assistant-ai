@@ -4,7 +4,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.services.llamaindex.client import LlamaIndexError, wait_for_job
+from app.services.llamaindex.client import (
+    LlamaIndexError,
+    get_job_id,
+    get_job_status,
+    wait_for_job,
+)
 from app.services.llamaindex.parse import _derive_key_values, _extract_parsed_text, parse_document
 
 
@@ -46,7 +51,9 @@ def test_derive_key_values():
 def test_parse_document_success(monkeypatch):
     client = MagicMock()
     parse_job = MagicMock(id="pjb-1", status="PENDING")
+    parse_job.model_fields = {"id", "status"}
     completed_job = MagicMock(id="pjb-1", status="COMPLETED")
+    completed_job.model_fields = {"id", "status"}
     get_response = _FakeResponse(
         text_full="Employer: Acme Corp\nGross Pay: 8500.00",
     )
@@ -71,7 +78,9 @@ def test_parse_document_success(monkeypatch):
 def test_parse_document_empty_text_raises(monkeypatch):
     client = MagicMock()
     parse_job = MagicMock(id="pjb-2", status="PENDING")
+    parse_job.model_fields = {"id", "status"}
     completed_job = MagicMock(id="pjb-2", status="COMPLETED")
+    completed_job.model_fields = {"id", "status"}
 
     client.parsing.create.return_value = parse_job
     client.parsing.get.return_value = _FakeResponse(text_full="   ")
@@ -88,9 +97,37 @@ def test_parse_document_empty_text_raises(monkeypatch):
 
 def test_wait_for_job_raises_on_failure():
     job = MagicMock(id="job-fail", status="FAILED", error_message="boom")
+    job.model_fields = {"id", "status", "error_message"}
 
     def _get(_job_id):
         return job
 
     with pytest.raises(LlamaIndexError, match="failed"):
         wait_for_job(job, get_job=_get, job_kind="parse")
+
+
+def test_wait_for_job_polls_parsing_get_response_shape(monkeypatch):
+    """parsing.get returns ParsingGetResponse with status nested under .job."""
+    monkeypatch.setattr("app.services.llamaindex.client.settings.LLAMA_POLL_INTERVAL_SEC", 0)
+    monkeypatch.setattr("app.services.llamaindex.client.settings.LLAMA_JOB_TIMEOUT_SEC", 5)
+
+    create_job = MagicMock(id="pjb-1", status="PENDING")
+    create_job.model_fields = {"id", "status"}
+
+    running_nested = MagicMock(id="pjb-1", status="RUNNING", error_message=None)
+    running_response = MagicMock(job=running_nested)
+    running_response.model_fields = {"job"}
+
+    completed_nested = MagicMock(id="pjb-1", status="COMPLETED", error_message=None)
+    completed_response = MagicMock(job=completed_nested)
+    completed_response.model_fields = {"job"}
+
+    poll_calls = {"n": 0}
+
+    def _get(_job_id):
+        poll_calls["n"] += 1
+        return completed_response if poll_calls["n"] >= 1 else running_response
+
+    result = wait_for_job(create_job, get_job=_get, job_kind="parse")
+    assert get_job_id(result) == "pjb-1"
+    assert get_job_status(result) == "COMPLETED"

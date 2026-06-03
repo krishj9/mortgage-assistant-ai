@@ -1,16 +1,9 @@
-from __future__ import annotations
+"""Backward-compatible re-exports. Prefer app.observability."""
 
-import os
+from app.observability import (
+    configure_langsmith,
+    configure_observability,
+    with_deal_metadata,
+)
 
-
-def configure_langsmith() -> None:
-    """
-    Keeps tracing optional for local development.
-    """
-    if os.environ.get("LANGSMITH_API_KEY"):
-        os.environ.setdefault("LANGSMITH_TRACING", "true")
-
-
-def with_deal_metadata(deal_id: int) -> dict:
-    return {"deal_id": str(deal_id)}
-
+__all__ = ["configure_langsmith", "configure_observability", "with_deal_metadata"]

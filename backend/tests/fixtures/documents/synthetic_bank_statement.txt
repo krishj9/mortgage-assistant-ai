@@ -1,0 +1,6 @@
+BANK STATEMENT — CHECKING
+Account Holder: Alice Borrower
+Institution: First National Bank
+Statement Period: 01/01/2025 - 01/31/2025
+Beginning Balance: 10200.00
+Ending Balance: 12500.50

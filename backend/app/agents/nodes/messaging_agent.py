@@ -8,7 +8,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from app.agents.prompts.messaging import MESSAGING_SYSTEM_PROMPT
 from app.schemas.agent_io import MessageDrafts
 from app.schemas.eligibility import ConditionsList, EligibilityResult
-from app.services.bedrock.client import get_structured_model
+from app.services.bedrock.client import get_structured_model, invoke_structured
 
 
 def _template_messages(
@@ -53,7 +53,8 @@ def run_messaging_agent(
             "eligibility": eligibility.model_dump(mode="json"),
             "conditions": [c.model_dump() for c in conditions.items],
         }
-        result = model.invoke(
+        result = invoke_structured(
+            model,
             [
                 SystemMessage(content=MESSAGING_SYSTEM_PROMPT),
                 HumanMessage(
@@ -62,7 +63,8 @@ def run_messaging_agent(
                         "message based on this data:\n\n" + json.dumps(payload)
                     )
                 ),
-            ]
+            ],
+            tags=["messaging"],
         )
         if isinstance(result, MessageDrafts) and result.internal_draft.strip() and result.borrower_draft.strip():
             return result.internal_draft.strip(), result.borrower_draft.strip()

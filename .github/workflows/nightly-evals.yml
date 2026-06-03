@@ -1,0 +1,47 @@
+name: Nightly Evals
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  eval-full:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        observability_provider: [none, langsmith]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        working-directory: backend
+        run: uv sync --extra dev
+
+      - name: Run deterministic evals
+        working-directory: backend
+        run: uv run pytest tests/eval/test_eval_schema.py tests/eval/test_eval_deterministic.py -q
+
+      - name: Run full eval suite
+        working-directory: backend
+        env:
+          OBSERVABILITY_PROVIDER: ${{ matrix.observability_provider }}
+          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+          LANGSMITH_PROJECT: loan-officer-copilot
+        run: uv run python -m evals.runners.run_all --suite full --output eval-results.json
+
+      - name: Upload eval results
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results-${{ matrix.observability_provider }}
+          path: backend/eval-results.json
+
+      - name: Run latency eval tests
+        working-directory: backend
+        run: uv run pytest tests/eval/test_eval_latency.py -m eval_latency -q
