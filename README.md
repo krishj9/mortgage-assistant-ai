@@ -16,7 +16,11 @@ Phase-1 scope: synthetic borrowers and documents, a small document set (pay stub
 **Core capabilities**
 
 - **Conversational intake** — LangGraph + Amazon Bedrock structured turns; Pydantic validation before any application data is saved.
-- **Document pipeline** — Upload → OCR → classify → normalize income/assets into deal context.
+- **Document pipeline & OCR** — Live SSE stream updates borrowers as files undergo a 4-step processing pipeline:
+  * **Parse**: Converts PDF/image uploads to text. Uses **LlamaCloud Parse** (default) or **AWS Textract** (`FeatureTypes=["FORMS", "TABLES"]` or `analyze_expense` for statements).
+  * **Classify**: Identifies document type (`pay_stub`, `w2`, or `bank_statement`) using filename and content pattern heuristics with a fallback to Amazon Bedrock LLM classification.
+  * **Extract**: Extracts critical numbers (such as gross income and assets) via structured **LlamaExtract** tasks or custom regex/key-value heuristics.
+  * **Map**: Standardizes the extracted variables into a clean, uniform JSON schema saved to the database deal context.
 - **Eligibility & conditions** — Deterministic rules engine with optional LLM refinement of condition wording.
 - **Messaging** — Draft internal and borrower messages; **staff must approve** before borrowers see them.
 - **Two portals** — Borrower portal and LO console (Next.js), backed by a FastAPI API.
