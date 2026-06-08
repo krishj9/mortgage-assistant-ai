@@ -10,7 +10,7 @@ Phase-1 scope: synthetic borrowers and documents, a small document set (pay stub
 
 | Persona | Experience |
 |--------|------------|
-| **Borrower** | Guided chat fills a simplified loan application; upload documents in-portal; see LO-approved updates in chat. |
+| **Borrower** | Guided chat fills a simplified loan application; upload documents (W-2, pay stub, bank statement) in-portal with live OCR processing feedback; see LO-approved updates in chat. |
 | **Loan officer / processor** | Review deals, correct extractions, run eligibility (DTI/LTV), edit conditions, approve internal and borrower-facing messages. |
 
 **Core capabilities**
