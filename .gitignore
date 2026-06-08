@@ -20,6 +20,7 @@ frontend/out/
 .env
 **/.env
 **/.env.local
+.env.example
 
 # Local document uploads (dev storage)
 backend/local_storage/
